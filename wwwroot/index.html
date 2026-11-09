@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#191329">
+  <title>Paradox — Play, learn, repeat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Paradox home"><span class="brand-mark">P</span><span>paradox</span></a>
+    <nav class="main-nav" aria-label="Main navigation">
+      <button class="nav-link active" data-page="join">Join a game</button>
+      <button class="nav-link" data-page="create">Create</button>
+      <button class="nav-link" data-page="library">My quizzes</button>
+    </nav>
+    <div class="topbar-note"><span class="online-dot"></span> Make learning a little more fun</div>
+  </header>
+  <main id="app" class="page-shell" aria-live="polite"></main>
+  <footer class="footer"><span>Paradox</span><span>Curiosity looks good on you.</span></footer>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/app.js"></script>
+</body>
+</html>

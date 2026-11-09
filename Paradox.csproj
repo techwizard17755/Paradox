@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
+    <ProjectReference Include="Server\Paradox.Server.csproj" />
+    <EmbeddedResource Include="wwwroot\**\*" LogicalName="Paradox.%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Remove="GameContracts.cs;GameEndpoints.cs;GameService.cs;Server\**\*.cs;Server\obj\**\*.cs;Server\bin\**\*.cs" />
+  </ItemGroup>
+</Project>

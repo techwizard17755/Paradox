@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: paradox
+    runtime: docker
+    plan: starter
+    region: ohio
+    dockerfilePath: ./Server/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: ASPNETCORE_HTTP_PORTS
+        value: "10000"
+      - key: PARADOX_DATA_DIR
+        value: /var/data
+    disk:
+      name: paradox-data
+      mountPath: /var/data
+      sizeGB: 1

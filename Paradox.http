@@ -1,0 +1,100 @@
+@baseUrl = http://localhost:10000
+@quizKey = replace-with-private-key
+
+### Create a quiz
+POST {{baseUrl}}/api/games
+Content-Type: application/json
+
+{
+  "quizName": "Quick Science",
+  "description": "A quick round of science trivia!",
+  "theme": "ocean",
+  "questions": [
+    {
+      "prompt": "Which planet is known as the Red Planet?",
+      "options": ["Venus", "Mars", "Jupiter", "Mercury"],
+      "correctOptionIndex": 1,
+      "timeLimitSeconds": 20
+    }
+  ]
+}
+
+### List the available quiz themes
+GET {{baseUrl}}/api/library/themes
+
+### Save a reusable quiz (first save returns a private owner key)
+POST {{baseUrl}}/api/library/
+Content-Type: application/json
+
+{
+  "quizName": "Space night",
+  "description": "A quick round among the stars.",
+  "theme": "sunset",
+  "questions": [
+    {
+      "prompt": "Which planet has the most visible rings?",
+      "options": ["Mars", "Saturn"],
+      "correctOptionIndex": 1,
+      "timeLimitSeconds": 20
+    }
+  ]
+}
+
+### List quizzes belonging to the owner key
+GET {{baseUrl}}/api/library/
+X-Quiz-Key: {{quizKey}}
+
+### Read, edit, or delete a quiz (replace {id} with its saved ID)
+GET {{baseUrl}}/api/library/{id}
+X-Quiz-Key: {{quizKey}}
+
+###
+PUT {{baseUrl}}/api/library/{id}
+X-Quiz-Key: {{quizKey}}
+Content-Type: application/json
+
+{
+  "quizName": "Space night — updated",
+  "description": "A quick round among the stars.",
+  "theme": "violet",
+  "questions": [
+    {
+      "prompt": "Which planet has the most visible rings?",
+      "options": ["Mars", "Saturn"],
+      "correctOptionIndex": 1,
+      "timeLimitSeconds": 30
+    }
+  ]
+}
+
+###
+DELETE {{baseUrl}}/api/library/{id}
+X-Quiz-Key: {{quizKey}}
+
+### Read a game snapshot (replace 123456 with the returned PIN)
+GET {{baseUrl}}/api/games/123456
+
+### Join the lobby
+POST {{baseUrl}}/api/games/123456/players
+Content-Type: application/json
+
+{
+  "username": "Alex"
+}
+
+### Start the game (include the X-Host-Key returned by create)
+POST {{baseUrl}}/api/games/123456/start
+X-Host-Key: replace-with-host-key
+
+### Submit an answer (include the X-Player-Id returned by join)
+POST {{baseUrl}}/api/games/123456/answers
+X-Player-Id: replace-with-player-id
+Content-Type: application/json
+
+{
+  "optionIndex": 1
+}
+
+### Continue after the answer reveal (include the host key)
+POST {{baseUrl}}/api/games/123456/next
+X-Host-Key: replace-with-host-key

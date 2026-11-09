@@ -1,0 +1,119 @@
+<Window x:Class="Paradox.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="Paradox — Live Quiz Studio"
+        Width="1280"
+        Height="850"
+        MinWidth="820"
+        MinHeight="620"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource AppBackground}"
+        Foreground="{StaticResource AppText}"
+        FontFamily="Segoe UI"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True">
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="58" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="32" />
+    </Grid.RowDefinitions>
+
+    <Border Grid.Row="0"
+            Padding="20,0"
+            Background="#211B32"
+            BorderBrush="#38FFFFFF"
+            BorderThickness="0,0,0,1">
+      <DockPanel LastChildFill="True">
+        <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+          <Border Width="30"
+                  Height="30"
+                  CornerRadius="10,10,10,3"
+                  Background="{StaticResource AppAccent}"
+                  RenderTransformOrigin="0.5,0.5">
+            <Border.RenderTransform>
+              <RotateTransform Angle="-5" />
+            </Border.RenderTransform>
+            <TextBlock Text="P"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Foreground="#242032"
+                       FontFamily="Segoe UI"
+                       FontSize="18"
+                       FontWeight="Bold" />
+          </Border>
+          <TextBlock Margin="11,0,0,0"
+                     Text="paradox"
+                     VerticalAlignment="Center"
+                     FontSize="19"
+                     FontWeight="Bold"
+                     Foreground="{StaticResource AppText}" />
+          <Border Margin="15,0,0,0"
+                  Padding="9,5"
+                  CornerRadius="7"
+                  Background="#2A2340"
+                  VerticalAlignment="Center">
+            <TextBlock Text="LIVE QUIZ STUDIO"
+                       Foreground="{StaticResource AppMuted}"
+                       FontSize="9"
+                       FontWeight="Bold" />
+          </Border>
+        </StackPanel>
+
+        <Button DockPanel.Dock="Right"
+                Click="CopyJoinLink_Click"
+                Margin="12,0,0,0"
+                Padding="14,8"
+                VerticalAlignment="Center"
+                Background="#352C4B"
+                BorderBrush="#45FFFFFF"
+                BorderThickness="1"
+                Foreground="{StaticResource AppText}"
+                FontSize="11"
+                FontWeight="SemiBold"
+                Cursor="Hand"
+                ToolTip="Copy the link players on your local Wi-Fi can open">
+          <StackPanel Orientation="Horizontal">
+            <TextBlock Text="↗" Margin="0,0,8,0" Foreground="{StaticResource AppAccent}" />
+            <TextBlock Text="Copy player link" />
+          </StackPanel>
+        </Button>
+
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
+          <Ellipse Width="7"
+                   Height="7"
+                   Margin="0,0,8,0"
+                   Fill="{StaticResource AppAccent}" />
+          <TextBlock Text="Your game is ready"
+                     Foreground="{StaticResource AppMuted}"
+                     FontSize="11" />
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
+    <Border Grid.Row="1" Background="{StaticResource AppBackground}">
+      <wv2:WebView2 x:Name="Browser" />
+    </Border>
+
+    <Border Grid.Row="2"
+            Padding="16,0"
+            Background="#211B32"
+            BorderBrush="#26FFFFFF"
+            BorderThickness="0,1,0,0">
+      <DockPanel>
+        <TextBlock x:Name="StatusText"
+                   Text="Starting your private game room…"
+                   VerticalAlignment="Center"
+                   Foreground="{StaticResource AppMuted}"
+                   FontSize="10" />
+        <TextBlock DockPanel.Dock="Right"
+                   Text="Paradox"
+                   VerticalAlignment="Center"
+                   Foreground="#777188"
+                   FontSize="10"
+                   FontWeight="Bold" />
+      </DockPanel>
+    </Border>
+  </Grid>
+</Window>

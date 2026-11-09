@@ -1,0 +1,12 @@
+<Application x:Class="Paradox.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ShutdownMode="OnMainWindowClose">
+  <Application.Resources>
+    <SolidColorBrush x:Key="AppBackground" Color="#191329" />
+    <SolidColorBrush x:Key="AppPanel" Color="#241E36" />
+    <SolidColorBrush x:Key="AppAccent" Color="#D3FF72" />
+    <SolidColorBrush x:Key="AppText" Color="#F8F6FF" />
+    <SolidColorBrush x:Key="AppMuted" Color="#A7A1B9" />
+  </Application.Resources>
+</Application>
