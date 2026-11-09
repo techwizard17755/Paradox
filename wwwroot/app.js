@@ -1,6 +1,8 @@
 const app = document.getElementById("app");
 const toast = document.getElementById("toast");
 const letters = ["A", "B", "C", "D"];
+const localQuizLibraryKey = "paradox-local-quizzes";
+const localQuizMigrationKey = "paradox-local-quizzes-migrated";
 let questions = [newQuestion()];
 let pollingTimer = null;
 let currentMode = null;
@@ -41,7 +43,9 @@ async function api(url, options = {}) {
   });
   const body = response.status === 204 ? null : await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(body?.detail || body?.title || "Something went wrong. Please try again.");
+    const error = new Error(body?.detail || body?.title || "Something went wrong. Please try again.");
+    error.status = response.status;
+    throw error;
   }
   return body;
 }
@@ -67,6 +71,65 @@ function quizKey() {
 function ownerHeaders() {
   const key = quizKey();
   return key ? { "X-Quiz-Key": key } : {};
+}
+
+function usesBrowserQuizLibrary() {
+  return !["localhost", "127.0.0.1"].includes(window.location.hostname);
+}
+
+function readLocalQuizzes() {
+  const stored = localStorage.getItem(localQuizLibraryKey);
+  if (!stored) return [];
+
+  let quizzes;
+  try {
+    quizzes = JSON.parse(stored);
+  } catch {
+    throw new Error("Your saved quizzes could not be read from this browser.");
+  }
+  if (!Array.isArray(quizzes) ||
+      quizzes.some(quiz => !quiz || typeof quiz.id !== "string" ||
+        typeof quiz.quizName !== "string" || !Array.isArray(quiz.questions))) {
+    throw new Error("Your saved quiz library has an invalid format.");
+  }
+  return quizzes;
+}
+
+function writeLocalQuizzes(quizzes) {
+  try {
+    localStorage.setItem(localQuizLibraryKey, JSON.stringify(quizzes));
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "QuotaExceededError")
+      throw new Error("This browser is out of storage space. Remove unused site data and try again.");
+    throw error;
+  }
+}
+
+async function loadLocalQuizzes() {
+  const localQuizzes = readLocalQuizzes();
+  const ownerKey = quizKey();
+  if (!ownerKey || localStorage.getItem(localQuizMigrationKey) === "true")
+    return localQuizzes;
+
+  try {
+    const remoteQuizzes = await api("/api/library/", { headers: ownerHeaders() });
+    const localIds = new Set(localQuizzes.map(quiz => quiz.id));
+    const importedQuizzes = remoteQuizzes.filter(quiz => !localIds.has(quiz.id));
+    const mergedQuizzes = [...localQuizzes, ...importedQuizzes];
+    writeLocalQuizzes(mergedQuizzes);
+    localStorage.setItem(localQuizMigrationKey, "true");
+    localStorage.removeItem("paradox-quiz-key");
+    if (importedQuizzes.length)
+      notify(`Imported ${importedQuizzes.length} saved ${importedQuizzes.length === 1 ? "quiz" : "quizzes"} to this browser.`);
+    return mergedQuizzes;
+  } catch (error) {
+    if (error.status === 401) {
+      localStorage.removeItem("paradox-quiz-key");
+      localStorage.setItem(localQuizMigrationKey, "true");
+      return localQuizzes;
+    }
+    throw new Error(`Could not import your existing saved quizzes: ${error.message}`);
+  }
 }
 
 function stopPolling() {
@@ -136,6 +199,7 @@ function renderBuilder(quiz = null) {
   setNav("create");
   savedQuizId = quiz?.id || null;
   currentTheme = quiz?.theme || "violet";
+  const localLibrary = usesBrowserQuizLibrary();
   app.innerHTML = `
     <div class="content-heading">
       <p class="eyebrow"><span class="eyebrow-mark">✦</span> Your quiz, your rules</p>
@@ -159,7 +223,7 @@ function renderBuilder(quiz = null) {
         <div id="question-list" class="question-list"></div>
         <div class="builder-actions">
           <button class="secondary-btn" type="button" data-action="add-question"><span aria-hidden="true">＋</span> Add a question</button>
-          <span class="save-note">${savedQuizId ? "Editing a saved quiz" : "Saves to your quiz library"}</span>
+          <span class="save-note">${savedQuizId ? "Editing a saved quiz" : localLibrary ? "Saves in this browser" : "Saves to your quiz library"}</span>
           <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
             <button class="secondary-btn" type="button" data-action="save-quiz">Save quiz</button>
             <button class="primary-btn" type="submit" data-intent="host">Host quiz <span aria-hidden="true">→</span></button>
@@ -176,7 +240,9 @@ function renderBuilder(quiz = null) {
         <div class="tip-row"><span class="tip-icon">✦</span><span>Tap the circle beside the right answer.</span></div>
         <div class="tip-row"><span class="tip-icon">🎨</span><span>Choose a color palette and add a welcome note.</span></div>
         <div class="aside-divider"></div>
-        <p>Your quizzes are saved privately in <strong style="color:var(--lime)">My quizzes</strong>, so you can edit or host them later.</p>
+        <p>${localLibrary
+          ? 'Your quizzes are saved on this device in this browser. They are not synced to other devices.'
+          : 'Your quizzes are saved privately in <strong style="color:var(--lime)">My quizzes</strong>, so you can edit or host them later.'}</p>
       </aside>
     </section>`;
   drawQuestionCards();
@@ -195,6 +261,23 @@ function quizPayload(form) {
 
 async function saveCurrentQuiz(form) {
   const payload = quizPayload(form);
+  if (usesBrowserQuizLibrary()) {
+    const quizzes = readLocalQuizzes();
+    const existing = quizzes.find(quiz => quiz.id === savedQuizId);
+    const now = new Date().toISOString();
+    const quiz = {
+      id: savedQuizId || crypto.randomUUID(),
+      ...payload,
+      createdAt: existing?.createdAt || now,
+      updatedAt: now
+    };
+    writeLocalQuizzes([quiz, ...quizzes.filter(item => item.id !== quiz.id)]);
+    savedQuizId = quiz.id;
+    currentTheme = quiz.theme;
+    notify("Quiz saved in this browser.");
+    return quiz;
+  }
+
   const headers = ownerHeaders();
   const saved = savedQuizId
     ? await api(`/api/library/${encodeURIComponent(savedQuizId)}`, {
@@ -213,8 +296,9 @@ async function renderLibrary() {
   stopPolling();
   setTheme();
   setNav("library");
+  const localLibrary = usesBrowserQuizLibrary();
   const key = quizKey();
-  if (!key) {
+  if (!localLibrary && !key) {
     app.innerHTML = `
       <div class="library-header content-heading">
         <div><p class="eyebrow"><span class="eyebrow-mark">✦</span> Your quiz studio</p><h1>Your quizzes.</h1><p>Saved quizzes will live here, ready to edit or host again whenever you're ready.</p></div>
@@ -225,12 +309,16 @@ async function renderLibrary() {
   }
   app.innerHTML = `
     <div class="library-header content-heading">
-      <div><p class="eyebrow"><span class="eyebrow-mark">✦</span> Your quiz studio</p><h1>Your quizzes.</h1><p>Pick up where you left off. Edit, customize, or host any quiz in your library.</p></div>
+      <div><p class="eyebrow"><span class="eyebrow-mark">✦</span> Your quiz studio</p><h1>Your quizzes.</h1><p>${localLibrary
+        ? "Saved on this device in this browser. Use the same browser and website to find them again."
+        : "Pick up where you left off. Edit, customize, or host any quiz in your library."}</p></div>
       <button class="primary-btn" data-page="create">Create a quiz <span aria-hidden="true">→</span></button>
     </div>
     <div id="quiz-library" class="library-grid"><div class="library-empty">Loading your saved quizzes…</div></div>`;
   try {
-    const savedQuizzes = await api("/api/library/", { headers: ownerHeaders() });
+    const savedQuizzes = localLibrary
+      ? await loadLocalQuizzes()
+      : await api("/api/library/", { headers: ownerHeaders() });
     const grid = document.getElementById("quiz-library");
     if (!grid) return;
     grid.innerHTML = savedQuizzes.length
@@ -252,7 +340,7 @@ async function renderLibrary() {
       }).join("")
       : `<div class="library-empty">Your library is ready. Save a quiz from the Create page and it will appear here.</div>`;
   } catch (error) {
-    if (error.message.includes("key")) {
+    if (!localLibrary && error.message.includes("key")) {
       localStorage.removeItem("paradox-quiz-key");
       renderLibrary();
     } else {
@@ -322,7 +410,7 @@ function renderHost(snapshot) {
   const scoreList = players.length
     ? `<ol class="score-list">${players.map((player, index) => `<li class="score-row"><span>${index === 0 && player.score > 0 ? "✦ " : ""}${escapeHtml(player.username)}</span><strong>${player.score.toLocaleString()} pts</strong></li>`).join("")}</ol>`
     : `<div class="empty-state">Your players will show up here.</div>`;
-  const isPublicHost = !["localhost", "127.0.0.1"].includes(window.location.hostname);
+  const isPublicHost = usesBrowserQuizLibrary();
   app.innerHTML = `
     <section class="game-layout">
       <div class="game-header"><h1>${escapeHtml(title)}</h1><div class="game-pin"><span>JOIN PIN</span><strong>${escapeHtml(snapshot.pin)}</strong></div></div>
@@ -538,7 +626,10 @@ document.addEventListener("click", async event => {
   }
   if (action === "edit-saved" || action === "host-saved") {
     try {
-      const quiz = await api(`/api/library/${encodeURIComponent(actionButton.dataset.id)}`, { headers: ownerHeaders() });
+      const quiz = usesBrowserQuizLibrary()
+        ? readLocalQuizzes().find(item => item.id === actionButton.dataset.id)
+        : await api(`/api/library/${encodeURIComponent(actionButton.dataset.id)}`, { headers: ownerHeaders() });
+      if (!quiz) throw new Error("That saved quiz could not be found.");
       if (action === "edit-saved") {
         questions = quiz.questions;
         renderBuilder(quiz);
@@ -554,9 +645,14 @@ document.addEventListener("click", async event => {
   if (action === "delete-saved") {
     if (!confirm("Delete this saved quiz? This cannot be undone.")) return;
     try {
-      await api(`/api/library/${encodeURIComponent(actionButton.dataset.id)}`, {
-        method: "DELETE", headers: ownerHeaders()
-      });
+      if (usesBrowserQuizLibrary()) {
+        const quizzes = readLocalQuizzes().filter(quiz => quiz.id !== actionButton.dataset.id);
+        writeLocalQuizzes(quizzes);
+      } else {
+        await api(`/api/library/${encodeURIComponent(actionButton.dataset.id)}`, {
+          method: "DELETE", headers: ownerHeaders()
+        });
+      }
       notify("Quiz deleted.");
       await renderLibrary();
     } catch (error) {
