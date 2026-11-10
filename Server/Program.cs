@@ -25,4 +25,5 @@ app.MapGet("/health", () => TypedResults.Ok(new { status = "ok" }));
 app.MapOpenApi();
 app.MapParadoxGameEndpoints();
 app.MapQuizLibraryEndpoints();
+app.MapDesktopDownloadEndpoint();
 app.Run();

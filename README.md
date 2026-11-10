@@ -10,6 +10,8 @@ The desktop app loads the current live website at startup. Publishing website ch
 
 The app reads `wwwroot\desktop-config.json` on startup and when **Refresh** is clicked. Change `appUrl` to point the desktop app at a different HTTPS site. Set `announcement` to display a short message in the app footer, or leave it empty. Push changes to the GitHub repository and wait for Render to finish deploying; the app picks up the new settings the next time it checks. If the settings file cannot be reached, the app uses the built-in Paradox website address.
 
+The current direct Windows package URL is `https://paradox-lft5.onrender.com/downloads/Paradox-v1.0.0.exe`. The server streams the versioned release asset without redirecting the download request.
+
 ## Host games over the Internet for free
 
 The cloud server lets a host and players join from different networks. Deploy this project's `render.yaml` blueprint from Render's dashboard. Render builds `Server/Dockerfile` and provides HTTPS on its Free web-service plan.
