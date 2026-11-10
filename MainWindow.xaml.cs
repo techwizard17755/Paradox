@@ -12,6 +12,7 @@ public partial class MainWindow : Window
     private Uri _appUri = DesktopConfigurationLoader.DefaultAppUri;
     private string? _configurationWarning;
     private string? _announcement;
+    private bool _hasLoadedPage;
 
     /// <summary>Creates the app window for the live Paradox website.</summary>
     public MainWindow()
@@ -67,6 +68,7 @@ public partial class MainWindow : Window
             return;
         }
 
+        _hasLoadedPage = true;
         UpdateConnectionStatus();
     }
 
@@ -83,6 +85,8 @@ public partial class MainWindow : Window
         _appUri = result.Configuration.AppUri;
         _configurationWarning = result.Warning;
         _announcement = result.Configuration.Announcement;
+        if (_hasLoadedPage)
+            UpdateConnectionStatus();
         if (Browser.Source?.GetLeftPart(UriPartial.Path) != _appUri.GetLeftPart(UriPartial.Path))
             Browser.Source = _appUri;
     }
@@ -100,7 +104,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            Clipboard.SetText(_appUri.GetLeftPart(UriPartial.Authority));
+            Clipboard.SetText(_appUri.GetLeftPart(UriPartial.Path).TrimEnd('/'));
             StatusText.Text = "Invite link copied · Share it with the game PIN";
         }
         catch (System.Runtime.InteropServices.ExternalException exception)
