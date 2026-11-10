@@ -1,8 +1,5 @@
-using System.IO;
 using System.Diagnostics;
-using System.Net;
-using System.Net.NetworkInformation;
-using System.Net.Sockets;
+using System.IO;
 using System.Windows;
 using Microsoft.Web.WebView2.Core;
 
@@ -12,19 +9,15 @@ namespace Paradox;
 public partial class MainWindow : Window
 {
     private const string RuntimeDownloadUrl = "https://developer.microsoft.com/microsoft-edge/webview2/";
-    private readonly WebApplication _server;
-    private readonly string _localAppUrl;
-    private readonly string _playerUrl;
+    private Uri _appUri = DesktopConfigurationLoader.DefaultAppUri;
+    private string? _configurationWarning;
+    private string? _announcement;
 
-    /// <summary>Creates the app window for a running local game server.</summary>
-    public MainWindow(WebApplication server)
+    /// <summary>Creates the app window for the live Paradox website.</summary>
+    public MainWindow()
     {
         InitializeComponent();
-        _server = server;
-        var boundPort = new Uri(_server.Urls.Single()).Port;
-        _localAppUrl = $"http://127.0.0.1:{boundPort}";
-        _playerUrl = GetPlayerUrl(boundPort);
-        StatusText.Text = $"Game room ready  ·  Players on your Wi-Fi: {_playerUrl}";
+        StatusText.Text = "Connecting to the live Paradox website…";
         Loaded += MainWindow_Loaded;
     }
 
@@ -45,7 +38,9 @@ public partial class MainWindow : Window
             Browser.CoreWebView2.Settings.IsStatusBarEnabled = false;
             Browser.CoreWebView2.Settings.IsZoomControlEnabled = false;
             Browser.CoreWebView2.NavigationStarting += Browser_NavigationStarting;
-            Browser.Source = new Uri(_localAppUrl);
+            Browser.CoreWebView2.NavigationCompleted += Browser_NavigationCompleted;
+            Browser.Source = _appUri;
+            await LoadRemoteConfigurationAsync();
         }
         catch (Exception exception)
         {
@@ -56,18 +51,57 @@ public partial class MainWindow : Window
     private void Browser_NavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
     {
         if (!Uri.TryCreate(e.Uri, UriKind.Absolute, out var destination) ||
-            (destination.Scheme == Uri.UriSchemeHttp && destination.Host is "127.0.0.1" or "localhost"))
+            (destination.Scheme == Uri.UriSchemeHttps &&
+             string.Equals(destination.Host, _appUri.Host, StringComparison.OrdinalIgnoreCase) &&
+             destination.Port == _appUri.Port))
             return;
 
         e.Cancel = true;
+    }
+
+    private void Browser_NavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
+    {
+        if (!e.IsSuccess)
+        {
+            StatusText.Text = $"Paradox could not load ({e.WebErrorStatus}). Check your Internet connection and refresh.";
+            return;
+        }
+
+        UpdateConnectionStatus();
+    }
+
+    private async void Refresh_Click(object sender, RoutedEventArgs e)
+    {
+        StatusText.Text = "Checking for the latest Paradox updates…";
+        await LoadRemoteConfigurationAsync();
+        Browser.CoreWebView2.Reload();
+    }
+
+    private async Task LoadRemoteConfigurationAsync()
+    {
+        var result = await DesktopConfigurationLoader.LoadAsync();
+        _appUri = result.Configuration.AppUri;
+        _configurationWarning = result.Warning;
+        _announcement = result.Configuration.Announcement;
+        if (Browser.Source?.GetLeftPart(UriPartial.Path) != _appUri.GetLeftPart(UriPartial.Path))
+            Browser.Source = _appUri;
+    }
+
+    private void UpdateConnectionStatus()
+    {
+        var notices = new[] { _configurationWarning, _announcement }
+            .Where(notice => !string.IsNullOrWhiteSpace(notice));
+        StatusText.Text = string.Join("  ·  ", notices);
+        if (string.IsNullOrWhiteSpace(StatusText.Text))
+            StatusText.Text = "Connected · App updates load from the live website";
     }
 
     private void CopyJoinLink_Click(object sender, RoutedEventArgs e)
     {
         try
         {
-            Clipboard.SetText(_playerUrl);
-            StatusText.Text = $"Player link copied  ·  {_playerUrl}  ·  Game PIN is shown on your host screen";
+            Clipboard.SetText(_appUri.GetLeftPart(UriPartial.Authority));
+            StatusText.Text = "Invite link copied · Share it with the game PIN";
         }
         catch (System.Runtime.InteropServices.ExternalException exception)
         {
@@ -90,21 +124,6 @@ public partial class MainWindow : Window
         if (result == MessageBoxResult.Yes)
             Process.Start(new ProcessStartInfo(RuntimeDownloadUrl) { UseShellExecute = true });
 
-        _server.StopAsync().GetAwaiter().GetResult();
         Application.Current.Shutdown(1);
-    }
-
-    private static string GetPlayerUrl(int port)
-    {
-        var address = NetworkInterface.GetAllNetworkInterfaces()
-            .Where(network => network.OperationalStatus == OperationalStatus.Up &&
-                              network.NetworkInterfaceType != NetworkInterfaceType.Loopback)
-            .SelectMany(network => network.GetIPProperties().UnicastAddresses)
-            .Select(unicast => unicast.Address)
-            .FirstOrDefault(candidate =>
-                candidate.AddressFamily == AddressFamily.InterNetwork &&
-                !IPAddress.IsLoopback(candidate));
-
-        return address is null ? $"http://127.0.0.1:{port}" : $"http://{address}:{port}";
     }
 }

@@ -1,14 +1,14 @@
 # Paradox
 
-Paradox is a Windows desktop quiz-hosting app with a separate cross-platform server for public Internet hosting. The quiz UI runs in the native Windows app or in a browser. Players join using the six-digit PIN and player website.
+Paradox is a Windows desktop app and public website backed by the same cross-platform game server. The desktop app opens the live website in a native Windows window, so hosts and players can use the same features from different networks. Players join using the six-digit PIN and public website link.
 
 ## Run the Windows desktop app
 
-Double-click `dist\win-x64\Paradox.exe` after publishing, or run `Publish-Paradox.ps1` to build it. The self-contained executable includes .NET; Windows users do not need the .NET SDK.
+Double-click `dist\win-x64\Paradox.exe` after publishing, or run `Publish-Paradox.ps1` to build it. The self-contained executable includes .NET; Windows users do not need the .NET SDK. The Microsoft Edge WebView2 Runtime is also required to display the app window. It is already present on most Windows 10 and Windows 11 computers. If it is missing, Paradox offers a link to Microsoft's official installer.
 
-The Microsoft Edge WebView2 Runtime is also required to display the app window. It is already present on most Windows 10 and Windows 11 computers. If it is missing, Paradox offers a link to Microsoft's official installer.
+The desktop app loads the current live website at startup. Publishing website changes updates the app experience without rebuilding or redistributing the EXE. Use **Refresh** in the app to load the latest website while it is open.
 
-The Windows app hosts games on your computer. Its **Copy player link** is for players on your local Wi-Fi; it is not a public Internet address.
+The app reads `wwwroot\desktop-config.json` on startup and when **Refresh** is clicked. Change `appUrl` to point the desktop app at a different HTTPS site. Set `announcement` to display a short message in the app footer, or leave it empty. Push changes to the GitHub repository and wait for Render to finish deploying; the app picks up the new settings the next time it checks. If the settings file cannot be reached, the app uses the built-in Paradox website address.
 
 ## Host games over the Internet for free
 
@@ -16,7 +16,7 @@ The cloud server lets a host and players join from different networks. Deploy th
 
 1. Put the project in a GitHub repository you control and push the source.
 2. In Render, choose **New → Blueprint**, connect that repository, and approve the `render.yaml` configuration.
-3. Wait for the first deploy, then open the HTTPS URL Render assigns to the app.
+3. Wait for the first deploy, then use the HTTPS URL in `wwwroot\desktop-config.json` as the app and player website.
 4. Create and save quizzes on that URL. Share the same HTTPS website and each game's PIN with players.
 
 There is no sign-in. On a public website, My Quizzes saves quiz content in that browser's local storage on the current device. It is not uploaded to the server or synced to other devices, browsers, or browser profiles. Clearing that site's browser data loses the library.
@@ -46,7 +46,7 @@ Open the printed local HTTP address to use the browser-hosted quiz site.
 - **Join a game:** Enter the host's six-digit PIN, choose a nickname, and answer each timed question.
 - **Create:** Add an introduction, choose among five color themes, add up to 30 questions, mark correct answers, and select each timer.
 - **My quizzes:** On the public website, save, edit, delete, and host quizzes from the same browser and device without an account.
-- **Host:** Share the PIN (and the public website if deployed), start the quiz, reveal answers when the timer ends, and advance through the scoreboard.
+- **Host:** Share the invite link and PIN, start the quiz, reveal answers when the timer ends, and advance through the scoreboard.
 
 Games are stored in memory and disappear when the server restarts. On the public website, quiz libraries are saved in the creator's browser; the server-side SQLite library is temporary in the free cloud configuration. Public hosting is configured for one server instance; scaling to multiple instances requires shared live-game storage and coordination.
 

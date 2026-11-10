@@ -73,10 +73,29 @@
                 FontSize="11"
                 FontWeight="SemiBold"
                 Cursor="Hand"
-                ToolTip="Copy the link players on your local Wi-Fi can open">
+                ToolTip="Copy the public link to share with players anywhere">
           <StackPanel Orientation="Horizontal">
             <TextBlock Text="↗" Margin="0,0,8,0" Foreground="{StaticResource AppAccent}" />
-            <TextBlock Text="Copy player link" />
+            <TextBlock Text="Copy invite link" />
+          </StackPanel>
+        </Button>
+
+        <Button DockPanel.Dock="Right"
+                Click="Refresh_Click"
+                Margin="12,0,0,0"
+                Padding="12,8"
+                VerticalAlignment="Center"
+                Background="#2A2340"
+                BorderBrush="#45FFFFFF"
+                BorderThickness="1"
+                Foreground="{StaticResource AppText}"
+                FontSize="11"
+                FontWeight="SemiBold"
+                Cursor="Hand"
+                ToolTip="Check for the latest Paradox website updates">
+          <StackPanel Orientation="Horizontal">
+            <TextBlock Text="↻" Margin="0,0,7,0" Foreground="{StaticResource AppAccent}" />
+            <TextBlock Text="Refresh" />
           </StackPanel>
         </Button>
 
@@ -85,7 +104,7 @@
                    Height="7"
                    Margin="0,0,8,0"
                    Fill="{StaticResource AppAccent}" />
-          <TextBlock Text="Your game is ready"
+          <TextBlock Text="Cross-network play"
                      Foreground="{StaticResource AppMuted}"
                      FontSize="11" />
         </StackPanel>
