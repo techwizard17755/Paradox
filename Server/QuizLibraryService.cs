@@ -211,13 +211,23 @@ internal sealed class QuizLibraryService : IQuizLibraryService
         {
             if (question is null || string.IsNullOrWhiteSpace(question.Prompt))
                 return "Every question needs a prompt.";
-            if (question.Options is null ||
-                question.Options.Count is < 2 or > 4 ||
-                question.Options.Any(string.IsNullOrWhiteSpace) ||
-                question.CorrectOptionIndex < 0 ||
-                question.CorrectOptionIndex >= question.Options.Count ||
-                question.TimeLimitSeconds is < 5 or > 60)
-                return "Check the answer choices, correct answer, and timer on each question.";
+            if (!Enum.IsDefined(question.Type) || question.TimeLimitSeconds is < 5 or > 60)
+                return "Check the question type and timer on each question.";
+            if (question.Type is QuestionType.MultipleChoice or QuestionType.Survey)
+            {
+                if (question.Options is null ||
+                    question.Options.Count is < 2 or > 4 ||
+                    question.Options.Any(string.IsNullOrWhiteSpace) ||
+                    (question.Type == QuestionType.MultipleChoice &&
+                     (question.CorrectOptionIndex < 0 || question.CorrectOptionIndex >= question.Options.Count)))
+                    return "Check the answer choices and correct answer on each question.";
+            }
+            else if (question.AcceptedAnswers is null ||
+                     question.AcceptedAnswers.Count is < 1 or > 10 ||
+                     question.AcceptedAnswers.Any(answer => string.IsNullOrWhiteSpace(answer) || answer.Trim().Length > 100))
+            {
+                return "Type-answer questions need between 1 and 10 accepted answers, each 100 characters or fewer.";
+            }
         }
         return null;
     }

@@ -8,7 +8,7 @@ internal interface IGameService
     PlayerJoinResult Join(string pin, string username);
     GameSnapshotResponse? GetSnapshot(string pin, string? hostKey, string? playerId, out bool unauthorized);
     GameActionResult Start(string pin, string hostKey);
-    GameActionResult SubmitAnswer(string pin, string playerId, int optionIndex);
+    GameActionResult SubmitAnswer(string pin, string playerId, int? optionIndex, string? answerText);
     GameActionResult Next(string pin, string hostKey);
 }
 
@@ -47,15 +47,44 @@ internal sealed class GameService : IGameService
         {
             if (question is null || string.IsNullOrWhiteSpace(question.Prompt))
                 return (null, "Every question needs a prompt.");
-            if (question.Options is null || question.Options.Count is < 2 or > 4)
-                return (null, "Each question needs between 2 and 4 answer choices.");
-            if (question.Options.Any(string.IsNullOrWhiteSpace))
-                return (null, "Answer choices cannot be blank.");
-            if (question.CorrectOptionIndex < 0 || question.CorrectOptionIndex >= question.Options.Count)
-                return (null, "Choose a correct answer for every question.");
+            if (!Enum.IsDefined(question.Type))
+                return (null, "Choose a supported question type.");
+            if (question.Type is QuestionType.MultipleChoice or QuestionType.Survey)
+            {
+                if (question.Options is null || question.Options.Count is < 2 or > 4)
+                    return (null, "Multiple-choice and survey questions need between 2 and 4 choices.");
+                if (question.Options.Any(string.IsNullOrWhiteSpace))
+                    return (null, "Answer choices cannot be blank.");
+                if (question.Type == QuestionType.MultipleChoice &&
+                    (question.CorrectOptionIndex < 0 || question.CorrectOptionIndex >= question.Options.Count))
+                    return (null, "Choose a correct answer for every multiple-choice question.");
+            }
+            else
+            {
+                if (question.AcceptedAnswers is null || question.AcceptedAnswers.Count is < 1 or > 10)
+                    return (null, "Type-answer questions need between 1 and 10 accepted answers.");
+                if (question.AcceptedAnswers.Any(answer => string.IsNullOrWhiteSpace(answer) || answer.Trim().Length > 100))
+                    return (null, "Accepted answers must contain between 1 and 100 characters.");
+            }
             if (question.TimeLimitSeconds is < 5 or > 60)
                 return (null, "Question timers must be between 5 and 60 seconds.");
         }
+
+        var normalizedQuestions = request.Questions
+            .Select(question => question with
+            {
+                Prompt = question.Prompt.Trim(),
+                Options = question.Type is QuestionType.MultipleChoice or QuestionType.Survey
+                    ? question.Options.Select(option => option.Trim()).ToList()
+                    : [],
+                AcceptedAnswers = question.Type == QuestionType.TypeAnswer
+                    ? question.AcceptedAnswers
+                    .Select(answer => answer.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList()
+                    : []
+            })
+            .ToArray();
 
         lock (_gate)
         {
@@ -66,7 +95,7 @@ internal sealed class GameService : IGameService
             } while (_games.ContainsKey(pin));
 
             var hostKey = Convert.ToHexString(RandomNumberGenerator.GetBytes(24));
-            _games.Add(pin, new Game(pin, hostKey, title, description, request.Theme, request.Questions));
+            _games.Add(pin, new Game(pin, hostKey, title, description, request.Theme, normalizedQuestions));
             return (new GameCreatedResponse(pin, hostKey, title), null);
         }
     }
@@ -101,14 +130,15 @@ internal sealed class GameService : IGameService
             if (!_games.TryGetValue(NormalizePin(pin), out var game))
                 return null;
 
-            if (!string.IsNullOrEmpty(hostKey) && !FixedTimeEquals(game.HostKey, hostKey))
+            var isHost = !string.IsNullOrEmpty(hostKey);
+            if (isHost && !FixedTimeEquals(game.HostKey, hostKey!))
             {
                 unauthorized = true;
                 return null;
             }
 
             AdvanceExpiredQuestion(game);
-            return Snapshot(game, playerId);
+            return Snapshot(game, playerId, isHost);
         }
     }
 
@@ -129,7 +159,7 @@ internal sealed class GameService : IGameService
         }
     }
 
-    public GameActionResult SubmitAnswer(string pin, string playerId, int optionIndex)
+    public GameActionResult SubmitAnswer(string pin, string playerId, int? optionIndex, string? answerText)
     {
         lock (_gate)
         {
@@ -143,13 +173,30 @@ internal sealed class GameService : IGameService
                 return Conflict("This question is no longer accepting answers.");
 
             var question = game.Questions[game.CurrentQuestionIndex];
-            if (optionIndex < 0 || optionIndex >= question.Options.Count)
-                return new(GameActionStatus.BadRequest, null, "That answer choice does not exist.");
+            if (question.Type is QuestionType.MultipleChoice or QuestionType.Survey)
+            {
+                if (optionIndex is null || optionIndex < 0 || optionIndex >= question.Options.Count || answerText is not null)
+                    return new(GameActionStatus.BadRequest, null, "Choose one of the available answer choices.");
+            }
+            else
+            {
+                if (optionIndex is not null || string.IsNullOrWhiteSpace(answerText) || answerText.Trim().Length > 100)
+                    return new(GameActionStatus.BadRequest, null, "Enter an answer between 1 and 100 characters.");
+                answerText = answerText.Trim();
+            }
             if (player.Answers.ContainsKey(game.CurrentQuestionIndex))
                 return Conflict("You have already answered this question.");
 
-            player.Answers[game.CurrentQuestionIndex] = optionIndex;
-            if (optionIndex == question.CorrectOptionIndex)
+            player.Answers[game.CurrentQuestionIndex] = new PlayerAnswer(optionIndex, answerText);
+            var isCorrect = question.Type switch
+            {
+                QuestionType.Survey => false,
+                QuestionType.MultipleChoice => optionIndex == question.CorrectOptionIndex,
+                QuestionType.TypeAnswer => question.AcceptedAnswers.Any(accepted =>
+                    string.Equals(accepted, answerText, StringComparison.OrdinalIgnoreCase)),
+                _ => false
+            };
+            if (isCorrect)
             {
                 var remaining = Math.Max(0, (game.EndsAtUtc!.Value - DateTimeOffset.UtcNow).TotalSeconds);
                 player.LastAnswerPoints = 500 + (int)Math.Round(500 * remaining / question.TimeLimitSeconds);
@@ -223,7 +270,7 @@ internal sealed class GameService : IGameService
         }
     }
 
-    private static GameSnapshotResponse Snapshot(Game game, string? playerId)
+    private static GameSnapshotResponse Snapshot(Game game, string? playerId, bool isHost = false)
     {
         var question = game.CurrentQuestionIndex >= 0
             ? game.Questions[game.CurrentQuestionIndex]
@@ -237,11 +284,23 @@ internal sealed class GameService : IGameService
                 .ToArray();
             game.LeaderboardDirty = false;
         }
-        int? myAnswer = playerId is not null &&
-                       game.Players.TryGetValue(playerId, out var player) &&
-                       game.CurrentQuestionIndex >= 0 &&
-                       player.Answers.TryGetValue(game.CurrentQuestionIndex, out var answer)
+        PlayerAnswer? myAnswer = playerId is not null &&
+                                 game.Players.TryGetValue(playerId, out var player) &&
+                                 game.CurrentQuestionIndex >= 0 &&
+                                 player.Answers.TryGetValue(game.CurrentQuestionIndex, out var answer)
             ? answer
+            : null;
+        var surveyResponses = isHost &&
+                          question?.Type == QuestionType.Survey &&
+                          game.Status is GameStatus.Reveal or GameStatus.Finished
+            ? game.Players.Values
+                .Where(player => player.Answers.ContainsKey(game.CurrentQuestionIndex))
+                .Select(player =>
+                {
+                    var response = player.Answers[game.CurrentQuestionIndex];
+                    return new SurveyResponse(player.Username, response.OptionIndex, response.AnswerText);
+                })
+                .ToArray()
             : null;
 
         return new GameSnapshotResponse(
@@ -252,12 +311,23 @@ internal sealed class GameService : IGameService
             game.Status,
             game.Players.Count,
             game.Leaderboard,
-            question is null ? null : new QuestionResponse(question.Prompt, question.Options, question.TimeLimitSeconds),
+            question is null ? null : new QuestionResponse(
+                question.Prompt,
+                question.Type,
+                question.Options,
+                question.TimeLimitSeconds,
+                question.Type == QuestionType.TypeAnswer &&
+                    (game.Status is GameStatus.Reveal or GameStatus.Finished)
+                    ? question.AcceptedAnswers
+                    : []),
             game.CurrentQuestionIndex + 1,
             game.Questions.Count,
             game.EndsAtUtc,
-            game.Status is GameStatus.Reveal or GameStatus.Finished ? question?.CorrectOptionIndex : null,
-            myAnswer);
+            (game.Status is GameStatus.Reveal or GameStatus.Finished) &&
+                question?.Type == QuestionType.MultipleChoice ? question.CorrectOptionIndex : null,
+            myAnswer?.OptionIndex,
+            myAnswer?.AnswerText,
+            surveyResponses);
     }
 
     private static GameActionResult Success(Game game, string? playerId = null) =>
@@ -307,6 +377,8 @@ internal sealed class GameService : IGameService
         public string Username { get; } = username;
         public int Score { get; set; }
         public int? LastAnswerPoints { get; set; }
-        public Dictionary<int, int> Answers { get; } = [];
+        public Dictionary<int, PlayerAnswer> Answers { get; } = [];
     }
+
+    private sealed record PlayerAnswer(int? OptionIndex, string? AnswerText);
 }

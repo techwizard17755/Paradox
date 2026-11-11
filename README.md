@@ -47,6 +47,7 @@ Open the printed local HTTP address to use the browser-hosted quiz site.
 
 - **Join a game:** Enter the host's six-digit PIN, choose a nickname, and answer each timed question.
 - **Create:** Add an introduction, choose among five color themes, add up to 30 questions, mark correct answers, and select each timer.
+- **Question types:** Mix multiple-choice questions, unscored surveys that collect named player responses, and typed-answer questions with up to 10 accepted spelling variations.
 - **My quizzes:** On the public website, save, edit, delete, and host quizzes from the same browser and device without an account.
 - **Scoring:** Correct answers earn 500 points plus up to 500 speed-bonus points. Scores and round totals appear with the answer reveal.
 - **Winner:** At the end, Paradox announces the top scorer or shared winners in a tie, then shows the final leaderboard.

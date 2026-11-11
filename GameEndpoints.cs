@@ -95,7 +95,7 @@ internal static class GameEndpoints
         {
             _ = cancellationToken;
             var playerId = request.Headers["X-Player-Id"].FirstOrDefault() ?? string.Empty;
-            return ToHttpResult(games.SubmitAnswer(pin, playerId, body.OptionIndex));
+            return ToHttpResult(games.SubmitAnswer(pin, playerId, body.OptionIndex, body.AnswerText));
         })
         .WithName("SubmitAnswer")
         .WithSummary("Submit an answer")

@@ -2,20 +2,24 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Paradox;
 
-/// <summary>Details for one multiple-choice quiz question.</summary>
+/// <summary>Details for one quiz question.</summary>
 public sealed record QuizQuestionRequest
 {
     /// <summary>The question shown to players.</summary>
     [Required, StringLength(240, MinimumLength = 1)]
     public required string Prompt { get; init; }
 
-    /// <summary>Two to four possible answers, in display order.</summary>
-    [Required, MinLength(2), MaxLength(4)]
-    public required List<string> Options { get; init; }
+    /// <summary>How players answer this question.</summary>
+    public QuestionType Type { get; init; } = QuestionType.MultipleChoice;
 
-    /// <summary>Zero-based index of the correct answer.</summary>
-    [Range(0, 3)]
-    public required int CorrectOptionIndex { get; init; }
+    /// <summary>Selectable answers for multiple-choice and survey questions.</summary>
+    public List<string> Options { get; init; } = [];
+
+    /// <summary>Zero-based correct choice for multiple-choice questions.</summary>
+    public int CorrectOptionIndex { get; init; }
+
+    /// <summary>Accepted text answers for type-answer questions.</summary>
+    public List<string> AcceptedAnswers { get; init; } = [];
 
     /// <summary>Time allowed for answers, between 5 and 60 seconds.</summary>
     [Range(5, 60)]
@@ -53,9 +57,13 @@ public sealed record JoinGameRequest
 /// <summary>Payload for submitting an answer to the current question.</summary>
 public sealed record SubmitAnswerRequest
 {
-    /// <summary>Zero-based index of the selected answer.</summary>
+    /// <summary>Zero-based index of the selected answer, when answering a choice question.</summary>
     [Range(0, 3)]
-    public required int OptionIndex { get; init; }
+    public int? OptionIndex { get; init; }
+
+    /// <summary>Free-text response, when answering a survey or type-answer question.</summary>
+    [StringLength(100)]
+    public string? AnswerText { get; init; }
 }
 
 /// <summary>Unique game PIN and host key returned when a game is created.</summary>
@@ -67,8 +75,16 @@ public sealed record PlayerJoinedResponse(string PlayerId, string Pin, string Us
 /// <summary>Public scoreboard entry.</summary>
 public sealed record PlayerScoreResponse(string Username, int Score, int? LastAnswerPoints);
 
-/// <summary>Current question choices, without revealing the correct answer early.</summary>
-public sealed record QuestionResponse(string Prompt, IReadOnlyList<string> Options, int TimeLimitSeconds);
+/// <summary>Current question details, without revealing accepted answers early.</summary>
+public sealed record QuestionResponse(
+    string Prompt,
+    QuestionType Type,
+    IReadOnlyList<string> Options,
+    int TimeLimitSeconds,
+    IReadOnlyList<string> AcceptedAnswers);
+
+/// <summary>A named response to a survey question.</summary>
+public sealed record SurveyResponse(string Username, int? OptionIndex, string? AnswerText);
 
 /// <summary>Current game state visible to a host or player.</summary>
 public sealed record GameSnapshotResponse(
@@ -84,7 +100,20 @@ public sealed record GameSnapshotResponse(
     int QuestionCount,
     DateTimeOffset? EndsAtUtc,
     int? CorrectOptionIndex,
-    int? MyAnswerIndex);
+    int? MyAnswerIndex,
+    string? MyAnswerText,
+    IReadOnlyList<SurveyResponse>? SurveyResponses);
+
+/// <summary>How a quiz question is answered and scored.</summary>
+public enum QuestionType
+{
+    /// <summary>Players select one choice; only the marked choice is correct.</summary>
+    MultipleChoice,
+    /// <summary>Players select one choice; responses are gathered without scoring.</summary>
+    Survey,
+    /// <summary>Players type a response; a matching accepted answer earns points.</summary>
+    TypeAnswer
+}
 
 /// <summary>Game lifecycle state.</summary>
 public enum GameStatus
