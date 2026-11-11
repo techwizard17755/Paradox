@@ -48,6 +48,8 @@ Open the printed local HTTP address to use the browser-hosted quiz site.
 - **Join a game:** Enter the host's six-digit PIN, choose a nickname, and answer each timed question.
 - **Create:** Add an introduction, choose among five color themes, add up to 30 questions, mark correct answers, and select each timer.
 - **My quizzes:** On the public website, save, edit, delete, and host quizzes from the same browser and device without an account.
+- **Scoring:** Correct answers earn 500 points plus up to 500 speed-bonus points. Scores and round totals appear with the answer reveal.
+- **Winner:** At the end, Paradox announces the top scorer or shared winners in a tie, then shows the final leaderboard.
 - **Host:** Share the invite link and PIN, start the quiz, reveal answers when the timer ends, and advance through the scoreboard.
 
 Games are stored in memory and disappear when the server restarts. On the public website, quiz libraries are saved in the creator's browser; the server-side SQLite library is temporary in the free cloud configuration. Public hosting is configured for one server instance; scaling to multiple instances requires shared live-game storage and coordination.

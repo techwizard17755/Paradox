@@ -8,6 +8,7 @@ let pollingTimer = null;
 let currentMode = null;
 let pollInProgress = false;
 let lastSnapshotSignature = null;
+let previousRoomSnapshot = null;
 let savedQuizId = null;
 let currentTheme = "violet";
 let toastTimer = null;
@@ -138,6 +139,7 @@ function stopPolling() {
   currentMode = null;
   pollInProgress = false;
   lastSnapshotSignature = null;
+  previousRoomSnapshot = null;
 }
 
 function renderJoin() {
@@ -398,7 +400,86 @@ function renderUsername(pin) {
   document.getElementById("username").focus();
 }
 
-function renderHost(snapshot) {
+function gameWinners(players) {
+  if (!players.length) return [];
+  const winningScore = players[0].score;
+  return players.filter(player => player.score === winningScore);
+}
+
+function renderWinnerAnnouncement(players, username = null, animate = false) {
+  const winners = gameWinners(players);
+  if (!winners.length) return "";
+  const isTie = winners.length > 1;
+  const playerWon = username !== null &&
+    winners.some(winner => winner.username.toLocaleLowerCase() === username.toLocaleLowerCase());
+  const headline = isTie ? "It's a tie!" : "And the winner is…";
+  const winnerNames = winners.map(winner => escapeHtml(winner.username)).join(" &amp; ");
+  const personalMessage = username === null
+    ? "What a game. Thanks for playing!"
+    : playerWon
+      ? "You took the top spot. Fantastic playing!"
+      : `You scored ${players.find(player => player.username.toLocaleLowerCase() === username.toLocaleLowerCase())?.score.toLocaleString() || 0} points. Great game!`;
+  return `
+    <section class="winner-stage ${animate ? "winner-stage-enter" : ""}" aria-live="polite">
+      ${animate ? `<div class="winner-confetti" aria-hidden="true">${Array.from({ length: 14 }, () => "<i></i>").join("")}</div>` : ""}
+      <div class="winner-crown" aria-hidden="true">${isTie ? "✦" : "♛"}</div>
+      <p class="winner-kicker">${escapeHtml(headline)}</p>
+      <h2 class="winner-names">${winnerNames}</h2>
+      <strong class="winner-score">${winners[0].score.toLocaleString()} <span>POINTS</span></strong>
+      <p class="winner-message">${escapeHtml(personalMessage)}</p>
+    </section>`;
+}
+
+function renderLeaderboard(players, showRoundPoints = false, animateScores = false) {
+  if (!players.length)
+    return `<div class="empty-state">Your players will show up here.</div>`;
+
+  let previousScore = null;
+  let previousRank = 0;
+  const rows = players.map((player, index) => {
+    const rank = player.score === previousScore ? previousRank : index + 1;
+    previousScore = player.score;
+    previousRank = rank;
+    const roundPoints = showRoundPoints && player.lastAnswerPoints !== null
+      ? `<span class="round-points">${player.lastAnswerPoints > 0 ? "+" : ""}${player.lastAnswerPoints.toLocaleString()} this round</span>`
+      : "";
+    return `<li class="score-row ${rank === 1 ? "score-row-leader" : ""} ${animateScores && player.lastAnswerPoints !== null ? "score-row-update" : ""}">
+      <span class="score-player"><span class="score-rank">${rank === 1 ? "★" : rank}</span><span class="score-name">${escapeHtml(player.username)}</span>${roundPoints}</span>
+      <strong>${player.score.toLocaleString()} <span>pts</span></strong>
+    </li>`;
+  }).join("");
+  return `<ol class="score-list" aria-label="Leaderboard">${rows}</ol>`;
+}
+
+function renderRoundSummary(players, animate = false) {
+  const answered = players.filter(player => player.lastAnswerPoints !== null).length;
+  const correct = players.filter(player => player.lastAnswerPoints > 0).length;
+  const points = players.reduce((total, player) => total + (player.lastAnswerPoints || 0), 0);
+  return `<div class="round-summary ${animate ? "round-summary-enter" : ""}" aria-live="polite">
+    <div><strong>${correct}</strong><span>correct</span></div>
+    <div><strong>${answered}/${players.length}</strong><span>answered</span></div>
+    <div><strong>+${points.toLocaleString()}</strong><span>points this round</span></div>
+  </div><p class="scoring-note">Correct answers earn 500 points, plus up to 500 bonus points for speed.</p>`;
+}
+
+function snapshotTransition(previous, snapshot, modeType) {
+  if (!previous) return null;
+  if (snapshot.status === "Finished" && previous.status !== "Finished")
+    return { type: "finish" };
+  if (snapshot.questionNumber !== previous.questionNumber)
+    return { type: "question" };
+  if (previous.status === "Question" && snapshot.status === "Reveal")
+    return { type: "reveal" };
+  if (modeType === "player" &&
+      snapshot.status === "Question" &&
+      previous.status === "Question" &&
+      previous.myAnswerIndex === null &&
+      snapshot.myAnswerIndex !== null)
+    return { type: "answer" };
+  return null;
+}
+
+function renderHost(snapshot, transition) {
   const host = JSON.parse(sessionStorage.getItem("paradox-host") || "null");
   if (!host) return renderJoin();
   setTheme(snapshot.theme);
@@ -407,9 +488,11 @@ function renderHost(snapshot) {
   const finished = snapshot.status === "Finished";
   const title = finished ? "That’s a wrap!" : snapshot.quizName;
   const players = snapshot.players || [];
-  const scoreList = players.length
-    ? `<ol class="score-list">${players.map((player, index) => `<li class="score-row"><span>${index === 0 && player.score > 0 ? "✦ " : ""}${escapeHtml(player.username)}</span><strong>${player.score.toLocaleString()} pts</strong></li>`).join("")}</ol>`
-    : `<div class="empty-state">Your players will show up here.</div>`;
+  const scoreList = renderLeaderboard(
+    players,
+    snapshot.status === "Reveal" || finished,
+    transition?.type === "reveal"
+  );
   const isPublicHost = usesBrowserQuizLibrary();
   app.innerHTML = `
     <section class="game-layout">
@@ -430,8 +513,8 @@ function renderHost(snapshot) {
         </div>
       ` : finished ? `
         <div class="game-panel">
-          <div class="reveal-banner">Quiz complete — nice playing, everyone!</div>
-          <h2 style="text-align:center;margin:0 0 18px;font-size:21px">Final leaderboard</h2>
+          ${renderWinnerAnnouncement(players, null, transition?.type === "finish")}
+          <h2 class="leaderboard-heading">Final leaderboard</h2>
           ${scoreList}
           <div style="display:flex;justify-content:center;margin-top:22px"><button class="primary-btn" data-action="new-quiz">Create another quiz</button></div>
         </div>
@@ -439,17 +522,17 @@ function renderHost(snapshot) {
         <div class="game-panel">
           <div class="game-meta"><span>${snapshot.status === "Reveal" ? "ANSWER REVEAL" : "QUESTION " + snapshot.questionNumber + " OF " + snapshot.questionCount}</span><strong class="question-clock">${snapshot.status === "Question" ? secondsLeft(snapshot.endsAtUtc) + " sec" : snapshot.playerCount + " playing"}</strong></div>
           <div class="timer-track"><div class="timer-fill" style="width:${timerPercent(snapshot)}%"></div></div>
-          <h2 class="game-question">${escapeHtml(snapshot.currentQuestion?.prompt)}</h2>
+          <h2 class="game-question ${transition?.type === "question" ? "question-enter" : ""}">${escapeHtml(snapshot.currentQuestion?.prompt)}</h2>
           <div class="answer-grid">${(snapshot.currentQuestion?.options || []).map((option, index) => `<div class="answer-card ${snapshot.status === "Reveal" ? (index === snapshot.correctOptionIndex ? "is-correct" : "is-wrong") : ""}"><span class="answer-symbol">${letters[index]}</span><span>${escapeHtml(option)}</span></div>`).join("")}</div>
-          ${snapshot.status === "Reveal" ? `<div class="reveal-banner">${snapshot.playerCount} ${snapshot.playerCount === 1 ? "player" : "players"} in the game</div>` : `<p class="answer-status">${players.filter(player => player.lastAnswerPoints !== null).length} of ${snapshot.playerCount} answered</p>`}
+          ${snapshot.status === "Reveal" ? `${renderRoundSummary(players, transition?.type === "reveal")}<div class="reveal-banner">Correct answer: <strong>${escapeHtml(snapshot.currentQuestion?.options[snapshot.correctOptionIndex] || "")}</strong></div>` : `<p class="answer-status">${players.filter(player => player.lastAnswerPoints !== null).length} of ${snapshot.playerCount} answered</p>`}
           ${snapshot.status === "Reveal" ? `<div style="display:flex;justify-content:center;margin:20px 0 27px"><button class="primary-btn" data-action="next">${snapshot.questionNumber >= snapshot.questionCount ? "See final scores" : "Next question"} <span aria-hidden="true">→</span></button></div>` : ""}
-          <div class="aside-divider"></div><h3 style="font-size:14px">Live leaderboard</h3>${scoreList}
+          <div class="aside-divider"></div><h3 class="leaderboard-heading">${snapshot.status === "Reveal" ? "Updated leaderboard" : "Live leaderboard"}</h3>${scoreList}
         </div>
       `}
     </section>`;
 }
 
-function renderPlayer(snapshot) {
+function renderPlayer(snapshot, transition) {
   const player = JSON.parse(sessionStorage.getItem("paradox-player") || "null");
   if (!player) return renderJoin();
   setTheme(snapshot.theme);
@@ -457,9 +540,12 @@ function renderPlayer(snapshot) {
   const lobby = snapshot.status === "Lobby";
   const finished = snapshot.status === "Finished";
   const players = snapshot.players || [];
-  const scoreList = players.length
-    ? `<ol class="score-list">${players.map((entry, index) => `<li class="score-row"><span>${index === 0 && entry.score > 0 ? "✦ " : ""}${escapeHtml(entry.username)}</span><strong>${entry.score.toLocaleString()} pts</strong></li>`).join("")}</ol>`
-    : "";
+  const playerScore = players.find(entry => entry.username.toLocaleLowerCase() === player.username.toLocaleLowerCase());
+  const scoreList = renderLeaderboard(
+    players,
+    snapshot.status === "Reveal" || finished,
+    transition?.type === "reveal"
+  );
   app.innerHTML = `
     <section class="game-layout">
       <div class="game-header"><h1>${escapeHtml(snapshot.quizName)}</h1><div class="game-pin"><span>YOU’RE IN</span><strong>${escapeHtml(player.username)}</strong></div></div>
@@ -472,19 +558,31 @@ function renderPlayer(snapshot) {
         </div>
       ` : finished ? `
         <div class="game-panel">
-          <div class="reveal-banner">That’s the end — thanks for playing!</div>
-          <h2 style="text-align:center;margin:0 0 8px;font-size:23px">${escapeHtml(player.username)}, you scored ${players.find(entry => entry.username === player.username)?.score?.toLocaleString() || 0} points.</h2>
-          <p style="text-align:center;color:var(--muted);font-size:12px;margin-bottom:22px">Final leaderboard</p>${scoreList}
+          ${renderWinnerAnnouncement(players, player.username, transition?.type === "finish")}
+          <h2 class="leaderboard-heading">Final leaderboard</h2>${scoreList}
           <div style="display:flex;justify-content:center;margin-top:24px"><button class="secondary-btn" data-action="leave">Back to Paradox</button></div>
         </div>
       ` : `
         <div class="game-panel">
           <div class="game-meta"><span>${snapshot.status === "Reveal" ? "ANSWER REVEAL" : "QUESTION " + snapshot.questionNumber + " OF " + snapshot.questionCount}</span><strong class="question-clock">${snapshot.status === "Question" ? secondsLeft(snapshot.endsAtUtc) + " sec" : "SCORES"}</strong></div>
           <div class="timer-track"><div class="timer-fill" style="width:${timerPercent(snapshot)}%"></div></div>
-          <h2 class="game-question">${escapeHtml(snapshot.currentQuestion?.prompt)}</h2>
-          <div class="answer-grid">${(snapshot.currentQuestion?.options || []).map((option, index) => `<button class="answer-card ${snapshot.myAnswerIndex === index ? "selected" : ""} ${snapshot.status === "Reveal" ? (index === snapshot.correctOptionIndex ? "is-correct" : (snapshot.myAnswerIndex === index ? "is-wrong" : "")) : ""}" data-action="answer" data-index="${index}" ${snapshot.status !== "Question" || snapshot.myAnswerIndex !== null ? "disabled" : ""}><span class="answer-symbol">${letters[index]}</span><span>${escapeHtml(option)}</span></button>`).join("")}</div>
-          <p class="answer-status">${snapshot.status === "Reveal" ? snapshot.myAnswerIndex === snapshot.correctOptionIndex ? `You got it! +${players.find(entry => entry.username === player.username)?.lastAnswerPoints || 0} points ✦` : "The correct answer is highlighted above." : snapshot.myAnswerIndex !== null ? "Answer locked in — nice one. Hang tight for the reveal." : "Choose your answer before the timer runs out."}</p>
-          ${snapshot.status === "Reveal" ? `<div class="reveal-banner">Question ${snapshot.questionNumber} of ${snapshot.questionCount} · Scores updated</div><h3 style="font-size:14px">Leaderboard</h3>${scoreList}` : ""}
+          <h2 class="game-question ${transition?.type === "question" ? "question-enter" : ""}">${escapeHtml(snapshot.currentQuestion?.prompt)}</h2>
+          <div class="answer-grid">${(snapshot.currentQuestion?.options || []).map((option, index) => {
+            const selected = snapshot.myAnswerIndex === index;
+            const correct = snapshot.status === "Reveal" && index === snapshot.correctOptionIndex;
+            const wrong = snapshot.status === "Reveal" && selected && !correct;
+            return `<button class="answer-card ${selected ? "selected" : ""} ${selected && transition?.type === "answer" ? "answer-submit-enter" : ""} ${correct ? "is-correct" : ""} ${wrong ? "is-wrong" : ""}" data-action="answer" data-index="${index}" ${snapshot.status !== "Question" || snapshot.myAnswerIndex !== null ? "disabled" : ""}><span class="answer-symbol">${correct ? "✓" : wrong ? "×" : letters[index]}</span><span>${escapeHtml(option)}</span>${selected && snapshot.status === "Question" ? `<span class="answer-locked-label">LOCKED IN</span>` : ""}</button>`;
+          }).join("")}</div>
+          ${snapshot.status === "Reveal"
+            ? `<div class="answer-result ${snapshot.myAnswerIndex === snapshot.correctOptionIndex ? "answer-result-correct" : "answer-result-wrong"} ${transition?.type === "reveal" ? "answer-result-enter" : ""}" role="status">
+                <span class="answer-result-icon" aria-hidden="true">${snapshot.myAnswerIndex === snapshot.correctOptionIndex ? "✓" : snapshot.myAnswerIndex === null ? "…" : "×"}</span>
+                <span class="answer-result-copy"><strong>${snapshot.myAnswerIndex === null ? "Time's up!" : snapshot.myAnswerIndex === snapshot.correctOptionIndex ? "Brilliant answer!" : "Not this time"}</strong><span>${snapshot.myAnswerIndex === null ? "The answer was revealed." : snapshot.myAnswerIndex === snapshot.correctOptionIndex ? "Fast and correct — points added to your score." : `Correct answer: ${escapeHtml(snapshot.currentQuestion?.options[snapshot.correctOptionIndex] || "")}`}</span></span>
+                <strong class="answer-result-points">${snapshot.myAnswerIndex === snapshot.correctOptionIndex ? `+${playerScore?.lastAnswerPoints || 0}` : "+0"}<span>PTS</span></strong>
+              </div>`
+            : snapshot.myAnswerIndex !== null
+              ? `<div class="answer-submitted ${transition?.type === "answer" ? "answer-submitted-enter" : ""}" role="status"><span class="answer-submitted-icon" aria-hidden="true">✓</span><span><strong>Answer locked in!</strong><small>Nice and quick. Your result is revealed when the timer ends.</small></span><span class="answer-submitted-dots" aria-hidden="true"><i></i><i></i><i></i></span></div>`
+              : `<p class="answer-status">Choose your answer before the timer runs out.</p>`}
+          ${snapshot.status === "Reveal" ? `${renderRoundSummary(players, transition?.type === "reveal")}<h3 class="leaderboard-heading">Leaderboard</h3>${scoreList}` : ""}
         </div>
       `}
     </section>`;
@@ -537,8 +635,10 @@ async function refreshRoom() {
       if (currentMode === mode) {
         const signature = snapshotSignature(snapshot);
         if (signature !== lastSnapshotSignature) {
+          const transition = snapshotTransition(previousRoomSnapshot, snapshot, "host");
+          previousRoomSnapshot = snapshot;
           lastSnapshotSignature = signature;
-          renderHost(snapshot);
+          renderHost(snapshot, transition);
         }
         updateClock(snapshot);
       }
@@ -547,8 +647,10 @@ async function refreshRoom() {
       if (currentMode === mode) {
         const signature = snapshotSignature(snapshot);
         if (signature !== lastSnapshotSignature) {
+          const transition = snapshotTransition(previousRoomSnapshot, snapshot, "player");
+          previousRoomSnapshot = snapshot;
           lastSnapshotSignature = signature;
-          renderPlayer(snapshot);
+          renderPlayer(snapshot, transition);
         }
         updateClock(snapshot);
       }
