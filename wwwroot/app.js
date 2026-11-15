@@ -1,10 +1,6 @@
 const app = document.getElementById("app");
 const toast = document.getElementById("toast");
 const letters = ["A", "B", "C", "D"];
-const choiceQuestionTypes = ["MultipleChoice", "Survey", "Prediction", "WouldYouRather"];
-const unscoredChoiceTypes = ["Survey", "WouldYouRather"];
-const scoredQuestionTypes = ["MultipleChoice", "Prediction", "TypeAnswer"];
-const textQuestionTypes = ["TypeAnswer", "StoryPrompt"];
 const localQuizLibraryKey = "paradox-local-quizzes";
 const localQuizMigrationKey = "paradox-local-quizzes-migrated";
 let questions = [newQuestion()];
@@ -15,10 +11,7 @@ let lastSnapshotSignature = null;
 let previousRoomSnapshot = null;
 let savedQuizId = null;
 let currentTheme = "violet";
-let showSettings = defaultShowSettings();
 let toastTimer = null;
-let doublePointsAudioEnabled = true;
-let gameAudioContext = null;
 const quizThemes = [
   { id: "violet", name: "Dream", color: "#a98bff" },
   { id: "ocean", name: "Ocean", color: "#66e4d1" },
@@ -34,13 +27,8 @@ function newQuestion() {
     options: ["", ""],
     correctOptionIndex: 0,
     acceptedAnswers: [""],
-    profilePrompts: {},
     timeLimitSeconds: 20
   };
-}
-
-function defaultShowSettings() {
-  return { playerLimit: 40, teamCount: 1, basePoints: 500, speedBonusPoints: 500, profileLabels: [], currencyName: "Coins", ruleBlocks: [] };
 }
 
 function escapeHtml(value) {
@@ -55,32 +43,6 @@ function notify(message) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toast.classList.remove("visible"), 3200);
 }
-
-function playCue(transition) {
-  if (!doublePointsAudioEnabled || !transition) return;
-  const AudioContext = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContext) return;
-  gameAudioContext ||= new AudioContext();
-  const notes = transition.type === "finish" ? [523, 659, 784] : transition.type === "reveal" ? [587, 784] : transition.type === "answer" ? [440] : [];
-  notes.forEach((frequency, index) => {
-    const oscillator = gameAudioContext.createOscillator();
-    const gain = gameAudioContext.createGain();
-    const start = gameAudioContext.currentTime + index * 0.1;
-    oscillator.frequency.value = frequency;
-    oscillator.type = "sine";
-    gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.exponentialRampToValueAtTime(0.08, start + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.16);
-    oscillator.connect(gain);
-    gain.connect(gameAudioContext.destination);
-    oscillator.start(start);
-    oscillator.stop(start + 0.17);
-  });
-}
-
-document.addEventListener("fullscreenchange", () => {
-  if (!document.fullscreenElement) document.body.classList.remove("stage-mode");
-});
 
 async function api(url, options = {}) {
   const response = await fetch(url, {
@@ -237,39 +199,12 @@ function syncQuestionsFromForm() {
     return {
       prompt: card.querySelector(".question-prompt").value,
       type,
-      options: choiceQuestionTypes.includes(type) ? choiceFields.map(input => input.value) : [],
+      options: choiceFields.length ? choiceFields.map(input => input.value) : existing.options || [],
       correctOptionIndex: selected ? Number(selected.value) : existing.correctOptionIndex || 0,
-      acceptedAnswers: type === "TypeAnswer" ? acceptedFields.map(input => input.value) : [],
-      profilePrompts: Object.fromEntries(
-        [...card.querySelectorAll(".profile-prompt-field")]
-          .map(input => [input.dataset.profile, input.value.trim()])
-          .filter(([, prompt]) => prompt)
-      ),
+      acceptedAnswers: acceptedFields.length ? acceptedFields.map(input => input.value) : existing.acceptedAnswers || [""],
       timeLimitSeconds: Number(card.querySelector(".question-footer .timer-select").value)
     };
   });
-}
-
-function syncShowSettingsFromForm() {
-  const playerLimit = document.getElementById("player-limit");
-  const teamCount = document.getElementById("team-count");
-  if (!playerLimit || !teamCount) return;
-  showSettings = {
-    playerLimit: Number(playerLimit.value),
-    teamCount: Number(teamCount.value),
-    basePoints: document.getElementById("base-points").valueAsNumber,
-    speedBonusPoints: document.getElementById("speed-bonus-points").valueAsNumber,
-    profileLabels: (document.getElementById("profile-labels").value || "")
-      .split(",")
-      .map(label => label.trim())
-      .filter(Boolean),
-    currencyName: document.getElementById("currency-name").value.trim(),
-    ruleBlocks: [...document.querySelectorAll(".rule-block")].map(block => ({
-      trigger: block.querySelector(".rule-trigger").value,
-      action: block.querySelector(".rule-action").value,
-      amount: Number(block.querySelector(".rule-amount").value)
-    }))
-  };
 }
 
 function renderBuilder(quiz = null) {
@@ -278,13 +213,6 @@ function renderBuilder(quiz = null) {
   setNav("create");
   savedQuizId = quiz?.id || null;
   currentTheme = quiz?.theme || "violet";
-  showSettings = {
-    ...defaultShowSettings(),
-    ...(quiz?.showSettings || {}),
-    profileLabels: Array.isArray(quiz?.showSettings?.profileLabels) ? quiz.showSettings.profileLabels : [],
-    currencyName: typeof quiz?.showSettings?.currencyName === "string" ? quiz.showSettings.currencyName : "Coins",
-    ruleBlocks: Array.isArray(quiz?.showSettings?.ruleBlocks) ? quiz.showSettings.ruleBlocks : []
-  };
   const localLibrary = usesBrowserQuizLibrary();
   app.innerHTML = `
     <div class="content-heading">
@@ -292,18 +220,6 @@ function renderBuilder(quiz = null) {
       <h1>Make a little magic.</h1>
       <p>Write questions, choose the right answers, then host a live game your friends can join with one PIN.</p>
     </div>
-    <section class="template-picker" aria-label="Show templates">
-      <div><span class="card-kicker">Start with a format</span><p>Choose a template or build a blank show from scratch.</p></div>
-      <div class="template-list">
-        <button class="secondary-btn" data-action="template" data-template="blank">Blank show</button>
-        <button class="secondary-btn" data-action="template" data-template="quiz">Quick quiz</button>
-        <button class="secondary-btn" data-action="template" data-template="poll">Audience poll</button>
-        <button class="secondary-btn" data-action="template" data-template="prediction">Prediction</button>
-        <button class="secondary-btn" data-action="template" data-template="would-you-rather">Would you rather</button>
-        <button class="secondary-btn" data-action="template" data-template="story">Story prompt</button>
-        <button class="secondary-btn" data-action="template" data-template="challenge">Answer challenge</button>
-      </div>
-    </section>
     <section class="builder-layout">
       <form class="builder-main" data-form="create">
         <label class="field-label" for="quiz-name">Give your quiz a name</label>
@@ -318,49 +234,6 @@ function renderBuilder(quiz = null) {
               <span class="theme-swatch">${theme.name}</span>
             </label>`).join("")}
         </div>
-        <section class="show-settings" aria-labelledby="show-settings-heading">
-            <div class="show-settings-heading">
-              <div><span class="card-kicker">Make it yours</span><h2 id="show-settings-heading">Show rules</h2></div>
-              <span class="show-settings-note">Set the room size and how everyone plays together.</span>
-            </div>
-            <div class="show-settings-grid">
-              <label class="field-label" for="player-limit">Player limit
-                <select id="player-limit" class="timer-select">
-                  ${[12, 24, 40].map(limit => `<option value="${limit}" ${limit === showSettings.playerLimit ? "selected" : ""}>${limit} players</option>`).join("")}
-                </select>
-                <small>40 is the current per-show maximum. Actual capacity depends on server load.</small>
-              </label>
-              <label class="field-label" for="team-count">Teams
-                <select id="team-count" class="timer-select">
-                  ${[[1, "Solo play"], [2, "2 teams"], [3, "3 teams"], [4, "4 teams"], [6, "6 teams"], [8, "8 teams"]]
-                    .filter(([count]) => count <= showSettings.playerLimit)
-                    .map(([count, label]) => `<option value="${count}" ${count === showSettings.teamCount ? "selected" : ""}>${label}</option>`).join("")}
-                </select>
-                <small>Players are automatically balanced across teams as they join.</small>
-              </label>
-              <label class="field-label" for="base-points">Points for a correct answer
-                <input id="base-points" class="text-field" type="number" min="0" max="5000" step="50" value="${showSettings.basePoints}">
-                <small>Choose the base score for each scored answer.</small>
-              </label>
-              <label class="field-label" for="speed-bonus-points">Maximum speed bonus
-                <input id="speed-bonus-points" class="text-field" type="number" min="0" max="5000" step="50" value="${showSettings.speedBonusPoints}">
-                <small>Faster correct answers earn more of this bonus.</small>
-              </label>
-              <label class="field-label" for="profile-labels">Optional player profiles
-                <input id="profile-labels" class="text-field profile-label-input" maxlength="124" value="${escapeHtml(showSettings.profileLabels.join(", "))}" placeholder="Younger players, Grown-ups">
-                <small>Up to four labels. Hosts assign them in the lobby; you can add alternate question wording for each profile.</small>
-              </label>
-            </div>
-            <div class="rule-builder">
-              <div class="rule-builder-heading"><strong>Build a show rule</strong><span>When an answer event happens, change the player’s points or show currency.</span></div>
-              <label class="field-label" for="currency-name">Currency name
-                <input id="currency-name" class="text-field" maxlength="20" value="${escapeHtml(showSettings.currencyName || "Coins")}" placeholder="Coins">
-              </label>
-              <div id="rule-block-list"></div>
-              <button class="quiet-btn" type="button" data-action="add-rule-block" ${showSettings.ruleBlocks.length >= 10 ? "disabled" : ""}>＋ Add event + action</button>
-              <small class="rule-builder-note">Rules run once for each scored answer. Currency is play-only and resets for every show.</small>
-            </div>
-        </section>
         <div id="question-list" class="question-list"></div>
         <div class="builder-actions">
           <button class="secondary-btn" type="button" data-action="add-question"><span aria-hidden="true">＋</span> Add a question</button>
@@ -387,61 +260,17 @@ function renderBuilder(quiz = null) {
       </aside>
     </section>`;
   drawQuestionCards();
-  drawRuleBlocks();
 }
 
 function quizPayload(form) {
   syncQuestionsFromForm();
-  syncShowSettingsFromForm();
   const data = new FormData(form);
-  const payload = {
+  return {
     quizName: data.get("quizName").toString().trim(),
     description: data.get("description").toString().trim(),
     theme: data.get("theme")?.toString() || currentTheme,
-    showSettings,
     questions
   };
-  const labels = payload.showSettings.profileLabels;
-  if (payload.showSettings.teamCount > payload.showSettings.playerLimit)
-    throw new Error("The number of teams cannot exceed the player limit.");
-  if ([payload.showSettings.basePoints, payload.showSettings.speedBonusPoints]
-    .some(points => !Number.isInteger(points) || points < 0 || points > 5000))
-    throw new Error("Set base points and speed bonus from 0 to 5,000.");
-  if (!payload.showSettings.currencyName || payload.showSettings.currencyName.length > 20)
-    throw new Error("Give your show currency a name of 1 to 20 characters.");
-  if (payload.showSettings.ruleBlocks.length > 10 ||
-      payload.showSettings.ruleBlocks.some(rule => !Number.isInteger(rule.amount) || rule.amount < 1 || rule.amount > 1000))
-    throw new Error("Each show rule must have an amount from 1 to 1,000. You can add up to 10 rules.");
-  if (labels.length > 4 || labels.some(label => label.length > 30) ||
-      new Set(labels.map(label => label.toLocaleLowerCase())).size !== labels.length)
-    throw new Error("Add up to four unique profile labels, each 30 characters or fewer.");
-  if (payload.questions.some(question => Object.keys(question.profilePrompts)
-    .some(label => !labels.some(profile => profile.toLocaleLowerCase() === label.toLocaleLowerCase()))))
-    throw new Error("Each alternate question must match one of this show's profile labels.");
-  return payload;
-}
-
-function drawRuleBlocks() {
-  const list = document.getElementById("rule-block-list");
-  if (!list) return;
-  const rules = showSettings.ruleBlocks || [];
-  list.innerHTML = rules.map((rule, index) => `
-    <div class="rule-block">
-      <span class="rule-block-when">WHEN</span>
-      <select class="timer-select rule-trigger" aria-label="Rule event ${index + 1}">
-        <option value="CorrectAnswer" ${rule.trigger === "CorrectAnswer" ? "selected" : ""}>answer is correct</option>
-        <option value="IncorrectAnswer" ${rule.trigger === "IncorrectAnswer" ? "selected" : ""}>answer is incorrect</option>
-      </select>
-      <span class="rule-block-then">THEN</span>
-      <select class="timer-select rule-action" aria-label="Rule action ${index + 1}">
-        <option value="AddCurrency" ${rule.action === "AddCurrency" ? "selected" : ""}>add currency</option>
-        <option value="RemoveCurrency" ${rule.action === "RemoveCurrency" ? "selected" : ""}>remove currency</option>
-        <option value="AddPoints" ${rule.action === "AddPoints" ? "selected" : ""}>add points</option>
-        <option value="RemovePoints" ${rule.action === "RemovePoints" ? "selected" : ""}>remove points</option>
-      </select>
-      <input class="text-field rule-amount" aria-label="Rule amount ${index + 1}" type="number" min="1" max="1000" value="${Number(rule.amount) || 1}">
-      <button type="button" class="remove-answer" data-action="remove-rule-block" data-index="${index}" aria-label="Remove rule">×</button>
-    </div>`).join("");
 }
 
 async function saveCurrentQuiz(form) {
@@ -545,22 +374,11 @@ function drawQuestionCards() {
       </div>
       <label class="field-label" for="prompt-${questionIndex}">Question</label>
       <textarea id="prompt-${questionIndex}" class="question-prompt" maxlength="240" placeholder="Write something fun to figure out…" required>${escapeHtml(question.prompt)}</textarea>
-      ${showSettings.profileLabels.length ? `
-        <details class="profile-prompts-editor">
-          <summary>Alternate wording by profile</summary>
-          ${showSettings.profileLabels.map((label, profileIndex) => `
-            <label class="field-label" for="profile-prompt-${questionIndex}-${profileIndex}">${escapeHtml(label)}
-              <textarea id="profile-prompt-${questionIndex}-${profileIndex}" class="profile-prompt-field" data-profile="${escapeHtml(label)}" maxlength="240" placeholder="Leave blank to use the main question">${escapeHtml(Object.entries(question.profilePrompts || {}).find(([name]) => name.toLocaleLowerCase() === label.toLocaleLowerCase())?.[1] || "")}</textarea>
-            </label>`).join("")}
-        </details>` : ""}
       <label class="field-label question-type-label" for="question-type-${questionIndex}">Question type
         <select id="question-type-${questionIndex}" class="question-type-select timer-select" aria-label="Question type">
           <option value="MultipleChoice" ${(question.type || "MultipleChoice") === "MultipleChoice" ? "selected" : ""}>Multiple choice</option>
           <option value="Survey" ${question.type === "Survey" ? "selected" : ""}>Survey (no right or wrong answer)</option>
           <option value="TypeAnswer" ${question.type === "TypeAnswer" ? "selected" : ""}>Type the answer</option>
-          <option value="Prediction" ${question.type === "Prediction" ? "selected" : ""}>Prediction</option>
-          <option value="WouldYouRather" ${question.type === "WouldYouRather" ? "selected" : ""}>Would you rather?</option>
-          <option value="StoryPrompt" ${question.type === "StoryPrompt" ? "selected" : ""}>Story prompt</option>
         </select>
       </label>
       ${question.type === "TypeAnswer" ? `
@@ -575,23 +393,19 @@ function drawQuestionCards() {
         </div>
         ${(Array.isArray(question.acceptedAnswers) ? question.acceptedAnswers.length : 0) < 10 ? `<button type="button" class="quiet-btn add-answer-btn" data-action="add-accepted-answer" data-index="${questionIndex}">＋ Add another accepted answer</button>` : ""}
       ` : `
-        ${choiceQuestionTypes.includes(question.type) ? `
-        <div class="options-heading"><span>${question.type === "Survey" ? "Survey choices" : question.type === "WouldYouRather" ? "Choose two options" : "Answer choices"}</span><span>${unscoredChoiceTypes.includes(question.type) ? "All responses are valid" : "Mark the outcome"}</span></div>
-        ${unscoredChoiceTypes.includes(question.type) ? `<p class="survey-builder-note">${question.type === "WouldYouRather" ? "Players vote for one of two options. The audience results are shown after the timer." : "No points are awarded. You’ll see each player’s choice and name after the timer ends."}</p>` : question.type === "Prediction" ? `<p class="survey-builder-note">Players predict an outcome. Mark the result that will count as correct; it is revealed after the timer.</p>` : ""}
-        ` : `<div class="answer-type-note">${question.type === "StoryPrompt" ? "Players contribute a short story idea. The host sees all responses after the timer; no points are awarded." : ""}</div>`}
-        ${choiceQuestionTypes.includes(question.type) ? `
+        <div class="options-heading"><span>${question.type === "Survey" ? "Survey choices" : "Answer choices"}</span><span>${question.type === "Survey" ? "All responses are valid" : "Mark the correct one"}</span></div>
+        ${question.type === "Survey" ? `<p class="survey-builder-note">No points are awarded. You’ll see each player’s choice and name after the timer ends.</p>` : ""}
         <div class="options-grid">
         ${question.options.map((option, optionIndex) => `
-          <label class="option-row ${unscoredChoiceTypes.includes(question.type) ? "survey-choice-row" : ""}">
-            ${unscoredChoiceTypes.includes(question.type) ? "" : `<input class="correct-radio" type="radio" name="correct-${questionIndex}" value="${optionIndex}" ${optionIndex === question.correctOptionIndex ? "checked" : ""} aria-label="Mark answer ${letters[optionIndex]} as correct">`}
+          <label class="option-row ${question.type === "Survey" ? "survey-choice-row" : ""}">
+            ${question.type === "Survey" ? "" : `<input class="correct-radio" type="radio" name="correct-${questionIndex}" value="${optionIndex}" ${optionIndex === question.correctOptionIndex ? "checked" : ""} aria-label="Mark answer ${letters[optionIndex]} as correct">`}
             <input class="option-field answer-choice-field" maxlength="100" placeholder="${letters[optionIndex]}. Answer choice" value="${escapeHtml(option)}" required>
           </label>`).join("")}
         </div>
-        ${question.options.length < 4 && question.type !== "WouldYouRather" ? `<button type="button" class="quiet-btn add-answer-btn" data-action="add-option" data-index="${questionIndex}">＋ Add choice</button>` : ""}
-        ` : ""}
+        ${question.options.length < 4 ? `<button type="button" class="quiet-btn add-answer-btn" data-action="add-option" data-index="${questionIndex}">＋ Add choice</button>` : ""}
       `}
       <div class="question-footer">
-        <span class="question-type-caption">${unscoredChoiceTypes.includes(question.type) ? "Audience responses are gathered without scoring." : question.type === "StoryPrompt" ? "Story ideas are shared with the host without scoring." : question.type === "TypeAnswer" ? "Correct answers earn show points; matching ignores case." : question.type === "Prediction" ? "Correct predictions earn show points." : "Correct answers earn show points, with a speed bonus."}</span>
+        <span class="question-type-caption">${question.type === "Survey" ? "Survey answers are gathered without scoring." : question.type === "TypeAnswer" ? "Correct answers earn points; matching ignores case." : "Correct answers earn points, with a speed bonus."}</span>
         <label class="field-label" style="display:flex;align-items:center;gap:8px;margin:0">Timer
           <select class="timer-select" aria-label="Question timer">
             ${[10, 15, 20, 30, 45, 60].map(seconds => `<option value="${seconds}" ${seconds === question.timeLimitSeconds ? "selected" : ""}>${seconds} sec</option>`).join("")}
@@ -658,7 +472,7 @@ function renderWinnerAnnouncement(players, username = null, animate = false) {
     </section>`;
 }
 
-function renderLeaderboard(players, showRoundPoints = false, animateScores = false, currencyName = "Coins", showCurrency = false) {
+function renderLeaderboard(players, showRoundPoints = false, animateScores = false) {
   if (!players.length)
     return `<div class="empty-state">Your players will show up here.</div>`;
 
@@ -672,38 +486,28 @@ function renderLeaderboard(players, showRoundPoints = false, animateScores = fal
       ? `<span class="round-points">${player.lastAnswerPoints > 0 ? "+" : ""}${player.lastAnswerPoints.toLocaleString()} this round</span>`
       : "";
     return `<li class="score-row ${rank === 1 ? "score-row-leader" : ""} ${animateScores && player.lastAnswerPoints !== null ? "score-row-update" : ""}">
-      <span class="score-player"><span class="score-rank">${rank === 1 ? "★" : rank}</span><span class="score-name">${escapeHtml(player.username)}</span>${player.teamName ? `<span class="team-tag">${escapeHtml(player.teamName)}</span>` : ""}${roundPoints}</span>
-      <strong>${player.score.toLocaleString()} <span>pts</span>${showCurrency ? `<small class="currency-balance">${player.currency.toLocaleString()} ${escapeHtml(currencyName)}</small>` : ""}</strong>
+      <span class="score-player"><span class="score-rank">${rank === 1 ? "★" : rank}</span><span class="score-name">${escapeHtml(player.username)}</span>${roundPoints}</span>
+      <strong>${player.score.toLocaleString()} <span>pts</span></strong>
     </li>`;
   }).join("");
   return `<ol class="score-list" aria-label="Leaderboard">${rows}</ol>`;
 }
 
-function renderTeamLeaderboard(teams, currencyName = "Coins", showCurrency = false) {
-  if (!Array.isArray(teams) || !teams.length) return "";
-  const rows = teams.map((team, index) => `
-    <li class="score-row ${index === 0 ? "score-row-leader" : ""}">
-      <span class="score-player"><span class="score-rank">${index === 0 ? "★" : index + 1}</span><span class="score-name">${escapeHtml(team.teamName)}</span><span class="team-tag">${team.playerCount} ${team.playerCount === 1 ? "player" : "players"}</span></span>
-      <strong>${team.score.toLocaleString()} <span>pts</span>${showCurrency ? `<small class="currency-balance">${team.currency.toLocaleString()} ${escapeHtml(currencyName)}</small>` : ""}</strong>
-    </li>`).join("");
-  return `<h3 class="leaderboard-heading team-leaderboard-heading">Team standings</h3><ol class="score-list" aria-label="Team standings">${rows}</ol>`;
-}
-
-function renderRoundSummary(players, animate = false, settings = defaultShowSettings()) {
+function renderRoundSummary(players, animate = false) {
   const answered = players.filter(player => player.lastAnswerPoints !== null).length;
-  const correct = players.filter(player => player.lastAnswerCorrect === true).length;
+  const correct = players.filter(player => player.lastAnswerPoints > 0).length;
   const points = players.reduce((total, player) => total + (player.lastAnswerPoints || 0), 0);
   return `<div class="round-summary ${animate ? "round-summary-enter" : ""}" aria-live="polite">
     <div><strong>${correct}</strong><span>correct</span></div>
     <div><strong>${answered}/${players.length}</strong><span>answered</span></div>
     <div><strong>+${points.toLocaleString()}</strong><span>points this round</span></div>
-  </div><p class="scoring-note">Correct answers earn ${settings.basePoints.toLocaleString()} base points, plus up to ${settings.speedBonusPoints.toLocaleString()} bonus points for speed.</p>`;
+  </div><p class="scoring-note">Correct answers earn 500 points, plus up to 500 bonus points for speed.</p>`;
 }
 
 function renderSurveyResults(question, responses) {
   const answers = responses || [];
   return `<section class="survey-results" aria-live="polite">
-    <h3>${question.type === "WouldYouRather" ? "Audience vote" : "Survey results"} <span>${answers.length} ${answers.length === 1 ? "response" : "responses"}</span></h3>
+    <h3>Survey results <span>${answers.length} ${answers.length === 1 ? "response" : "responses"}</span></h3>
     ${question.options.map((option, index) => {
       const selectedBy = answers.filter(response => response.optionIndex === index);
       return `<div class="survey-result-row">
@@ -712,16 +516,6 @@ function renderSurveyResults(question, responses) {
         <p>${selectedBy.length ? selectedBy.map(response => escapeHtml(response.username)).join(", ") : "No responses yet"}</p>
       </div>`;
     }).join("")}
-  </section>`;
-}
-
-function renderStoryResponses(responses) {
-  const answers = responses || [];
-  return `<section class="survey-results" aria-live="polite">
-    <h3>Story contributions <span>${answers.length} ${answers.length === 1 ? "response" : "responses"}</span></h3>
-    ${answers.length
-      ? answers.map(response => `<div class="story-contribution"><strong>${escapeHtml(response.username)}</strong><p>${escapeHtml(response.answerText || "No contribution submitted.")}</p></div>`).join("")
-      : `<p class="survey-builder-note">No story contributions were submitted this round.</p>`}
   </section>`;
 }
 
@@ -754,31 +548,24 @@ function renderHost(snapshot, transition) {
   const scoreList = renderLeaderboard(
     players,
     snapshot.status === "Reveal" || finished,
-    transition?.type === "reveal",
-    snapshot.showSettings.currencyName,
-    snapshot.showSettings.ruleBlocks.length > 0
-  );
-  const teamList = renderTeamLeaderboard(
-    snapshot.teams,
-    snapshot.showSettings.currencyName,
-    snapshot.showSettings.ruleBlocks.length > 0
+    transition?.type === "reveal"
   );
   const questionType = snapshot.currentQuestion?.type || "MultipleChoice";
   const isPublicHost = usesBrowserQuizLibrary();
   app.innerHTML = `
     <section class="game-layout">
-      <div class="game-header"><h1>${escapeHtml(title)}</h1><div class="game-header-actions"><button class="quiet-btn" data-action="stage">${document.body.classList.contains("stage-mode") ? "× Exit stage" : "⛶ Stage"}</button><button class="quiet-btn" data-action="sound">${doublePointsAudioEnabled ? "♫ Sound on" : "♫ Sound off"}</button><div class="game-pin"><span>JOIN PIN</span><strong>${escapeHtml(snapshot.pin)}</strong></div></div></div>
+      <div class="game-header"><h1>${escapeHtml(title)}</h1><div class="game-pin"><span>JOIN PIN</span><strong>${escapeHtml(snapshot.pin)}</strong></div></div>
       ${lobby ? `
         <div class="lobby-layout">
           <section class="waiting-panel">
-            <div class="game-meta"><span>THE LOBBY</span><strong>${snapshot.playerCount} / ${snapshot.showSettings.playerLimit} players</strong></div>
+            <div class="game-meta"><span>THE LOBBY</span><strong>${snapshot.playerCount} ${snapshot.playerCount === 1 ? "player" : "players"}</strong></div>
             <h2 style="margin-top:22px">The room is open.</h2>
             <p>${escapeHtml(snapshot.description || "Share the PIN with your crew. When everyone’s in, start the quiz.")}</p>
-            <div class="player-roster">${players.length ? players.map(player => `<div class="roster-item"><span class="roster-avatar">${escapeHtml(player.username.slice(0, 1).toUpperCase())}</span><span>${escapeHtml(player.username)}${player.teamName ? `<small class="roster-team">${escapeHtml(player.teamName)}</small>` : ""}${player.profileLabel ? `<small class="roster-profile">${escapeHtml(player.profileLabel)}</small>` : ""}${snapshot.showSettings.profileLabels.length ? `<select class="player-profile-select" data-player-id="${escapeHtml(player.playerId || "")}" aria-label="Profile for ${escapeHtml(player.username)}"><option value="">Standard</option>${snapshot.showSettings.profileLabels.map(label => `<option value="${escapeHtml(label)}" ${label === player.profileLabel ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}</select>` : ""}</span><button class="remove-answer roster-kick" data-action="kick-player" data-player-id="${escapeHtml(player.playerId || "")}" aria-label="Remove ${escapeHtml(player.username)}" title="Remove player">×</button></div>`).join("") : `<div class="empty-state">Waiting for the first player to join…</div>`}</div>
+            <div class="player-roster">${players.length ? players.map(player => `<div class="roster-item"><span class="roster-avatar">${escapeHtml(player.username.slice(0, 1).toUpperCase())}</span><span>${escapeHtml(player.username)}</span></div>`).join("") : `<div class="empty-state">Waiting for the first player to join…</div>`}</div>
           </section>
           <aside class="host-actions">
             <div class="waiting-panel room-code"><span class="code-label">Your game PIN</span><strong class="big-code">${escapeHtml(snapshot.pin)}</strong><span class="copy-note">Share this code so players can join.</span>${isPublicHost ? `<button class="secondary-btn" data-action="copy-invite" style="margin-top:13px;width:100%">Copy player website</button>` : ""}</div>
-            <button class="primary-btn" data-action="start" ${snapshot.playerCount === 0 ? "disabled" : ""}>Start the show <span aria-hidden="true">→</span></button>
+            <button class="primary-btn" data-action="start" ${snapshot.playerCount === 0 ? "disabled" : ""}>Start the quiz <span aria-hidden="true">→</span></button>
             <button class="quiet-btn" data-action="leave">← Back to Paradox</button>
           </aside>
         </div>
@@ -787,29 +574,25 @@ function renderHost(snapshot, transition) {
           ${renderWinnerAnnouncement(players, null, transition?.type === "finish")}
           <h2 class="leaderboard-heading">Final leaderboard</h2>
           ${scoreList}
-          ${teamList}
           <div style="display:flex;justify-content:center;margin-top:22px"><button class="primary-btn" data-action="new-quiz">Create another quiz</button></div>
         </div>
       ` : `
         <div class="game-panel">
-          <div class="game-meta"><span>${snapshot.status === "Reveal" ? "ANSWER REVEAL" : "QUESTION " + snapshot.questionNumber + " OF " + snapshot.questionCount}</span><strong class="question-clock">${snapshot.status === "Question" ? snapshot.isPaused ? `PAUSED · ${snapshot.pausedSecondsRemaining} sec` : secondsLeft(snapshot.endsAtUtc) + " sec" : snapshot.playerCount + " playing"}</strong></div>
+          <div class="game-meta"><span>${snapshot.status === "Reveal" ? "ANSWER REVEAL" : "QUESTION " + snapshot.questionNumber + " OF " + snapshot.questionCount}</span><strong class="question-clock">${snapshot.status === "Question" ? secondsLeft(snapshot.endsAtUtc) + " sec" : snapshot.playerCount + " playing"}</strong></div>
           <div class="timer-track"><div class="timer-fill" style="width:${timerPercent(snapshot)}%"></div></div>
-          ${snapshot.status === "Question" ? `<div class="host-live-controls"><button class="secondary-btn" data-action="${snapshot.isPaused ? "resume" : "pause"}">${snapshot.isPaused ? "▶ Resume timer" : "Ⅱ Pause timer"}</button><button class="secondary-btn" data-action="reveal">Reveal now</button><button class="quiet-btn" data-action="skip">Skip question</button></div>` : ""}
           <h2 class="game-question ${transition?.type === "question" ? "question-enter" : ""}">${escapeHtml(snapshot.currentQuestion?.prompt)}</h2>
-          ${textQuestionTypes.includes(questionType)
-            ? `<div class="host-question-note">${questionType === "StoryPrompt" ? "Players write short story contributions. Responses appear to the host after the timer." : "Players type their answer. Accepted spellings count as correct."}</div>`
-            : `<div class="answer-grid">${(snapshot.currentQuestion?.options || []).map((option, index) => `<div class="answer-card ${snapshot.status === "Reveal" && (questionType === "MultipleChoice" || questionType === "Prediction") ? (index === snapshot.correctOptionIndex ? "is-correct" : "is-wrong") : ""}"><span class="answer-symbol">${letters[index]}</span><span>${escapeHtml(option)}</span></div>`).join("")}</div>`}
+          ${questionType === "TypeAnswer"
+            ? `<div class="host-question-note">Players type their answer. Accepted spellings count as correct.</div>`
+            : `<div class="answer-grid">${(snapshot.currentQuestion?.options || []).map((option, index) => `<div class="answer-card ${snapshot.status === "Reveal" && questionType === "MultipleChoice" ? (index === snapshot.correctOptionIndex ? "is-correct" : "is-wrong") : ""}"><span class="answer-symbol">${letters[index]}</span><span>${escapeHtml(option)}</span></div>`).join("")}</div>`}
           ${snapshot.status === "Reveal"
-            ? unscoredChoiceTypes.includes(questionType)
+            ? questionType === "Survey"
               ? renderSurveyResults(snapshot.currentQuestion, snapshot.surveyResponses)
-              : questionType === "StoryPrompt"
-                ? renderStoryResponses(snapshot.surveyResponses)
-                : `${renderRoundSummary(players, transition?.type === "reveal", snapshot.showSettings)}${questionType === "MultipleChoice" || questionType === "Prediction"
-                  ? `<div class="reveal-banner">Correct answer: <strong>${escapeHtml(snapshot.currentQuestion?.options[snapshot.correctOptionIndex] || "")}</strong></div>`
-                  : `<div class="reveal-banner">Accepted answers include: <strong>${escapeHtml(snapshot.currentQuestion?.acceptedAnswers?.join(", ") || "the answer key")}</strong></div>`}`
-            : `<p class="answer-status">${players.filter(player => player.lastAnswerPoints !== null).length} of ${snapshot.playerCount} answered${unscoredChoiceTypes.includes(questionType) || questionType === "StoryPrompt" ? " · responses are not scored" : ""}</p>`}
-          ${snapshot.status === "Reveal" ? `<div style="display:flex;justify-content:center;gap:10px;margin:20px 0 27px"><button class="primary-btn" data-action="next">${snapshot.questionNumber >= snapshot.questionCount ? "See final scores" : "Next question"} <span aria-hidden="true">→</span></button><button class="quiet-btn" data-action="skip">Skip</button></div>` : ""}
-          <div class="aside-divider"></div><h3 class="leaderboard-heading">${snapshot.status === "Reveal" ? "Updated leaderboard" : "Live leaderboard"}</h3>${scoreList}${teamList}
+              : `${renderRoundSummary(players, transition?.type === "reveal")}${questionType === "MultipleChoice"
+                ? `<div class="reveal-banner">Correct answer: <strong>${escapeHtml(snapshot.currentQuestion?.options[snapshot.correctOptionIndex] || "")}</strong></div>`
+                : `<div class="reveal-banner">Accepted answers include: <strong>${escapeHtml(snapshot.currentQuestion?.acceptedAnswers?.join(", ") || "the answer key")}</strong></div>`}`
+            : `<p class="answer-status">${players.filter(player => player.lastAnswerPoints !== null).length} of ${snapshot.playerCount} answered${questionType === "Survey" ? " · survey answers are not scored" : ""}</p>`}
+          ${snapshot.status === "Reveal" ? `<div style="display:flex;justify-content:center;margin:20px 0 27px"><button class="primary-btn" data-action="next">${snapshot.questionNumber >= snapshot.questionCount ? "See final scores" : "Next question"} <span aria-hidden="true">→</span></button></div>` : ""}
+          <div class="aside-divider"></div><h3 class="leaderboard-heading">${snapshot.status === "Reveal" ? "Updated leaderboard" : "Live leaderboard"}</h3>${scoreList}
         </div>
       `}
     </section>`;
@@ -829,18 +612,11 @@ function renderPlayer(snapshot, transition) {
   const scoreList = renderLeaderboard(
     players,
     snapshot.status === "Reveal" || finished,
-    transition?.type === "reveal",
-    snapshot.showSettings.currencyName,
-    snapshot.showSettings.ruleBlocks.length > 0
-  );
-  const teamList = renderTeamLeaderboard(
-    snapshot.teams,
-    snapshot.showSettings.currencyName,
-    snapshot.showSettings.ruleBlocks.length > 0
+    transition?.type === "reveal"
   );
   app.innerHTML = `
     <section class="game-layout">
-      <div class="game-header"><h1>${escapeHtml(snapshot.quizName)}</h1><div class="game-header-actions"><div class="game-pin"><span>${playerScore?.teamName ? escapeHtml(playerScore.teamName) : "YOU’RE IN"}</span><strong>${escapeHtml(player.username)}</strong></div></div></div>
+      <div class="game-header"><h1>${escapeHtml(snapshot.quizName)}</h1><div class="game-pin"><span>YOU’RE IN</span><strong>${escapeHtml(player.username)}</strong></div></div>
       ${lobby ? `
         <div class="waiting-panel" style="text-align:center;padding:56px 25px">
           <span class="eyebrow">✦ You made it</span><h2 style="font-size:28px">You’re in the lobby, ${escapeHtml(player.username)}.</h2>
@@ -851,51 +627,47 @@ function renderPlayer(snapshot, transition) {
       ` : finished ? `
         <div class="game-panel">
           ${renderWinnerAnnouncement(players, player.username, transition?.type === "finish")}
-          <h2 class="leaderboard-heading">Final leaderboard</h2>${scoreList}${teamList}
+          <h2 class="leaderboard-heading">Final leaderboard</h2>${scoreList}
           <div style="display:flex;justify-content:center;margin-top:24px"><button class="secondary-btn" data-action="leave">Back to Paradox</button></div>
         </div>
       ` : `
         <div class="game-panel">
-          <div class="game-meta"><span>${snapshot.status === "Reveal" ? "ANSWER REVEAL" : "QUESTION " + snapshot.questionNumber + " OF " + snapshot.questionCount}</span><strong class="question-clock">${snapshot.status === "Question" ? snapshot.isPaused ? `PAUSED · ${snapshot.pausedSecondsRemaining} sec` : secondsLeft(snapshot.endsAtUtc) + " sec" : "SCORES"}</strong></div>
+          <div class="game-meta"><span>${snapshot.status === "Reveal" ? "ANSWER REVEAL" : "QUESTION " + snapshot.questionNumber + " OF " + snapshot.questionCount}</span><strong class="question-clock">${snapshot.status === "Question" ? secondsLeft(snapshot.endsAtUtc) + " sec" : "SCORES"}</strong></div>
           <div class="timer-track"><div class="timer-fill" style="width:${timerPercent(snapshot)}%"></div></div>
-          ${scoredQuestionTypes.includes(questionType) && snapshot.myDoublePointsArmed ? `<div class="power-up-note" role="status">✦ Double points armed for this answer!</div>` : scoredQuestionTypes.includes(questionType) && snapshot.status === "Question" && !snapshot.myDoublePointsUsed ? `<button class="power-up-btn" data-action="double-points" ${snapshot.isPaused ? "disabled" : ""}>✦ Arm double points <small>One use per show</small></button>` : ""}
-          ${snapshot.isPaused ? `<div class="survey-player-result" role="status"><strong>The host paused the show.</strong><span>Your answer is safe. The timer will continue when the host resumes.</span></div>` : ""}
           <h2 class="game-question ${transition?.type === "question" ? "question-enter" : ""}">${escapeHtml(snapshot.currentQuestion?.prompt)}</h2>
-          ${textQuestionTypes.includes(questionType)
+          ${questionType === "TypeAnswer"
             ? snapshot.status === "Reveal"
-              ? `<div class="typed-answer-display"><span>${questionType === "StoryPrompt" ? "Your story contribution" : "Your answer"}</span><strong>${escapeHtml(snapshot.myAnswerText || "No response submitted")}</strong></div>`
+              ? `<div class="typed-answer-display"><span>Your answer</span><strong>${escapeHtml(snapshot.myAnswerText || "No answer submitted")}</strong></div>`
               : `<form class="type-answer-form" data-form="answer-text">
-                  <label class="field-label" for="typed-answer">${questionType === "StoryPrompt" ? "Add a story contribution" : "Type your answer"}</label>
+                  <label class="field-label" for="typed-answer">Type your answer</label>
                   <div class="type-answer-controls">
-                    <input id="typed-answer" class="text-field" name="answerText" maxlength="100" placeholder="${questionType === "StoryPrompt" ? "Write one short idea…" : "Your answer…"}" value="${escapeHtml(snapshot.myAnswerText || "")}" ${hasSubmittedAnswer || snapshot.isPaused ? "disabled" : ""} required>
-                    <button class="primary-btn" type="submit" ${hasSubmittedAnswer || snapshot.isPaused ? "disabled" : ""}>${hasSubmittedAnswer ? "Submitted" : questionType === "StoryPrompt" ? "Share idea" : "Submit answer"} <span aria-hidden="true">→</span></button>
+                    <input id="typed-answer" class="text-field" name="answerText" maxlength="100" placeholder="Your answer…" value="${escapeHtml(snapshot.myAnswerText || "")}" ${hasSubmittedAnswer ? "disabled" : ""} required>
+                    <button class="primary-btn" type="submit" ${hasSubmittedAnswer ? "disabled" : ""}>${hasSubmittedAnswer ? "Submitted" : "Submit answer"} <span aria-hidden="true">→</span></button>
                   </div>
                 </form>`
             : `<div class="answer-grid">${(snapshot.currentQuestion?.options || []).map((option, index) => {
               const selected = snapshot.myAnswerIndex === index;
-              const correct = snapshot.status === "Reveal" && (questionType === "MultipleChoice" || questionType === "Prediction") && index === snapshot.correctOptionIndex;
-              const wrong = snapshot.status === "Reveal" && (questionType === "MultipleChoice" || questionType === "Prediction") && selected && !correct;
-              return `<button class="answer-card ${selected ? "selected" : ""} ${selected && transition?.type === "answer" ? "answer-submit-enter" : ""} ${correct ? "is-correct" : ""} ${wrong ? "is-wrong" : ""}" data-action="answer" data-index="${index}" ${snapshot.status !== "Question" || snapshot.isPaused || hasSubmittedAnswer ? "disabled" : ""}><span class="answer-symbol">${correct ? "✓" : wrong ? "×" : letters[index]}</span><span>${escapeHtml(option)}</span>${selected && snapshot.status === "Question" ? `<span class="answer-locked-label">LOCKED IN</span>` : ""}</button>`;
+              const correct = snapshot.status === "Reveal" && questionType === "MultipleChoice" && index === snapshot.correctOptionIndex;
+              const wrong = snapshot.status === "Reveal" && questionType === "MultipleChoice" && selected && !correct;
+              return `<button class="answer-card ${selected ? "selected" : ""} ${selected && transition?.type === "answer" ? "answer-submit-enter" : ""} ${correct ? "is-correct" : ""} ${wrong ? "is-wrong" : ""}" data-action="answer" data-index="${index}" ${snapshot.status !== "Question" || hasSubmittedAnswer ? "disabled" : ""}><span class="answer-symbol">${correct ? "✓" : wrong ? "×" : letters[index]}</span><span>${escapeHtml(option)}</span>${selected && snapshot.status === "Question" ? `<span class="answer-locked-label">LOCKED IN</span>` : ""}</button>`;
             }).join("")}</div>`}
-          ${snapshot.status === "Reveal" && unscoredChoiceTypes.includes(questionType)
-            ? `<div class="survey-player-result" role="status"><strong>${snapshot.myAnswerIndex !== null ? "Thanks for sharing!" : "Time’s up!"}</strong><span>${snapshot.myAnswerIndex !== null ? `Your response was recorded: ${escapeHtml(snapshot.currentQuestion?.options[snapshot.myAnswerIndex] || "")}.` : "No response was recorded before the timer ended."} These responses don't affect scores.</span></div>`
-            : snapshot.status === "Reveal" && questionType === "StoryPrompt"
-              ? `<div class="survey-player-result" role="status"><strong>Thanks for adding to the story!</strong><span>${snapshot.myAnswerText ? "The host can see your contribution." : "No contribution was submitted before the timer ended."} Story responses don't affect scores.</span></div>`
-            : snapshot.status === "Reveal" && scoredQuestionTypes.includes(questionType)
+          ${snapshot.status === "Reveal" && questionType === "Survey"
+            ? `<div class="survey-player-result" role="status"><strong>${snapshot.myAnswerIndex !== null ? "Thanks for sharing!" : "Time’s up!"}</strong><span>${snapshot.myAnswerIndex !== null ? `Your response was recorded: ${escapeHtml(snapshot.currentQuestion?.options[snapshot.myAnswerIndex] || "")}.` : "No response was recorded before the timer ended."} Survey answers don't affect scores.</span></div>`
+            : snapshot.status === "Reveal"
             ? `<div class="answer-result ${snapshot.myAnswerIndex === snapshot.correctOptionIndex ? "answer-result-correct" : "answer-result-wrong"} ${transition?.type === "reveal" ? "answer-result-enter" : ""}" role="status">
-                <span class="answer-result-icon" aria-hidden="true">${questionType === "MultipleChoice" || questionType === "Prediction" ? snapshot.myAnswerIndex === snapshot.correctOptionIndex ? "✓" : snapshot.myAnswerIndex === null ? "…" : "×" : playerScore?.lastAnswerCorrect === true ? "✓" : playerScore?.lastAnswerCorrect === false ? "×" : "…"}</span>
-                <span class="answer-result-copy"><strong>${questionType === "MultipleChoice" || questionType === "Prediction"
+                <span class="answer-result-icon" aria-hidden="true">${questionType === "MultipleChoice" ? snapshot.myAnswerIndex === snapshot.correctOptionIndex ? "✓" : snapshot.myAnswerIndex === null ? "…" : "×" : (playerScore?.lastAnswerPoints || 0) > 0 ? "✓" : snapshot.myAnswerText === null ? "…" : "×"}</span>
+                <span class="answer-result-copy"><strong>${questionType === "MultipleChoice"
                   ? snapshot.myAnswerIndex === null ? "Time's up!" : snapshot.myAnswerIndex === snapshot.correctOptionIndex ? "Brilliant answer!" : "Not this time"
-                  : snapshot.myAnswerText === null ? "Time's up!" : playerScore?.lastAnswerCorrect ? "Answer accepted!" : "Not quite"}</strong><span>${questionType === "MultipleChoice" || questionType === "Prediction"
+                  : snapshot.myAnswerText === null ? "Time's up!" : (playerScore?.lastAnswerPoints || 0) > 0 ? "Answer accepted!" : "Not quite"}</strong><span>${questionType === "MultipleChoice"
                   ? snapshot.myAnswerIndex === null ? "The answer was revealed." : snapshot.myAnswerIndex === snapshot.correctOptionIndex ? "Fast and correct — points added to your score." : `Correct answer: ${escapeHtml(snapshot.currentQuestion?.options[snapshot.correctOptionIndex] || "")}`
-                  : snapshot.myAnswerText === null ? "The accepted answers are shown above." : playerScore?.lastAnswerCorrect ? "That matches an accepted answer. Points added to your score." : "Check the accepted answers and try again next round."}</span></span>
+                  : snapshot.myAnswerText === null ? "The accepted answers are shown above." : (playerScore?.lastAnswerPoints || 0) > 0 ? "That matches an accepted answer. Points added to your score." : "Check the accepted answers and try again next round."}</span></span>
                 <strong class="answer-result-points">${(playerScore?.lastAnswerPoints || 0) > 0 ? `+${playerScore.lastAnswerPoints}` : "+0"}<span>PTS</span></strong>
               </div>`
             : hasSubmittedAnswer
-              ? `<div class="answer-submitted ${transition?.type === "answer" ? "answer-submitted-enter" : ""}" role="status"><span class="answer-submitted-icon" aria-hidden="true">✓</span><span><strong>${unscoredChoiceTypes.includes(questionType) || questionType === "StoryPrompt" ? "Response recorded!" : "Answer locked in!"}</strong><small>${questionType === "Survey" || questionType === "WouldYouRather" ? "Thanks! Your response will be included in the audience results." : questionType === "StoryPrompt" ? "The host will see your contribution after the timer." : "Nice and quick. Your result is revealed when the timer ends."}</small></span><span class="answer-submitted-dots" aria-hidden="true"><i></i><i></i><i></i></span></div>`
-              : `<p class="answer-status">${snapshot.isPaused ? "The host paused the timer." : "Choose your answer before the timer runs out."}</p>`}
-          ${snapshot.status === "Reveal" && scoredQuestionTypes.includes(questionType) ? renderRoundSummary(players, transition?.type === "reveal", snapshot.showSettings) : ""}
-          ${snapshot.status === "Reveal" ? `<h3 class="leaderboard-heading">Leaderboard</h3>${scoreList}${teamList}` : ""}
+              ? `<div class="answer-submitted ${transition?.type === "answer" ? "answer-submitted-enter" : ""}" role="status"><span class="answer-submitted-icon" aria-hidden="true">✓</span><span><strong>${questionType === "Survey" ? "Response recorded!" : "Answer locked in!"}</strong><small>${questionType === "Survey" ? "Thanks! Your response will be included in the survey results." : "Nice and quick. Your result is revealed when the timer ends."}</small></span><span class="answer-submitted-dots" aria-hidden="true"><i></i><i></i><i></i></span></div>`
+              : `<p class="answer-status">Choose your answer before the timer runs out.</p>`}
+          ${snapshot.status === "Reveal" && questionType !== "Survey" ? renderRoundSummary(players, transition?.type === "reveal") : ""}
+          ${snapshot.status === "Reveal" ? `<h3 class="leaderboard-heading">Leaderboard</h3>${scoreList}` : ""}
         </div>
       `}
     </section>`;
@@ -908,8 +680,7 @@ function secondsLeft(endTime) {
 
 function timerPercent(snapshot) {
   if (snapshot.status !== "Question" || !snapshot.currentQuestion) return 0;
-  const remaining = snapshot.isPaused ? snapshot.pausedSecondsRemaining : secondsLeft(snapshot.endsAtUtc);
-  return Math.max(0, Math.min(100, remaining / snapshot.currentQuestion.timeLimitSeconds * 100));
+  return Math.max(0, Math.min(100, secondsLeft(snapshot.endsAtUtc) / snapshot.currentQuestion.timeLimitSeconds * 100));
 }
 
 function updateClock(snapshot) {
@@ -918,7 +689,7 @@ function updateClock(snapshot) {
   if (clock) {
     clock.textContent = snapshot.status !== "Question"
       ? currentMode?.type === "host" ? `${snapshot.playerCount} playing` : "SCORES"
-      : snapshot.isPaused ? `PAUSED · ${snapshot.pausedSecondsRemaining} sec` : `${secondsLeft(snapshot.endsAtUtc)} sec`;
+      : `${secondsLeft(snapshot.endsAtUtc)} sec`;
   }
   if (fill) fill.style.width = `${timerPercent(snapshot)}%`;
 }
@@ -926,8 +697,6 @@ function updateClock(snapshot) {
 function snapshotSignature(snapshot) {
   return JSON.stringify([
     snapshot.status,
-    snapshot.isPaused,
-    snapshot.pausedSecondsRemaining,
     snapshot.playerCount,
     snapshot.players,
     snapshot.currentQuestion,
@@ -939,11 +708,7 @@ function snapshotSignature(snapshot) {
     snapshot.correctOptionIndex,
     snapshot.myAnswerIndex,
     snapshot.myAnswerText,
-    snapshot.surveyResponses,
-    snapshot.showSettings,
-    snapshot.teams,
-    snapshot.myDoublePointsUsed,
-    snapshot.myDoublePointsArmed
+    snapshot.surveyResponses
   ]);
 }
 
@@ -960,7 +725,6 @@ async function refreshRoom() {
           const transition = snapshotTransition(previousRoomSnapshot, snapshot, "host");
           previousRoomSnapshot = snapshot;
           lastSnapshotSignature = signature;
-          playCue(transition);
           renderHost(snapshot, transition);
         }
         updateClock(snapshot);
@@ -973,7 +737,6 @@ async function refreshRoom() {
           const transition = snapshotTransition(previousRoomSnapshot, snapshot, "player");
           previousRoomSnapshot = snapshot;
           lastSnapshotSignature = signature;
-          playCue(transition);
           renderPlayer(snapshot, transition);
         }
         updateClock(snapshot);
@@ -1011,7 +774,6 @@ document.addEventListener("click", async event => {
   if (pageButton) {
     if (pageButton.dataset.page === "create") {
       questions = [newQuestion()];
-      showSettings = defaultShowSettings();
       renderBuilder();
     } else if (pageButton.dataset.page === "library") {
       renderLibrary();
@@ -1025,64 +787,8 @@ document.addEventListener("click", async event => {
   if (!actionButton) return;
   const action = actionButton.dataset.action;
 
-  if (action === "stage") {
-    if (document.body.classList.contains("stage-mode")) {
-      document.body.classList.remove("stage-mode");
-      actionButton.textContent = "⛶ Stage";
-      if (document.fullscreenElement) await document.exitFullscreen();
-    } else {
-      document.body.classList.add("stage-mode");
-      actionButton.textContent = "× Exit stage";
-      try {
-        await document.documentElement.requestFullscreen();
-      } catch {
-        notify("Stage view is ready. Use your browser’s full-screen control for a larger display.");
-      }
-    }
-    return;
-  }
-  if (action === "sound") {
-    doublePointsAudioEnabled = !doublePointsAudioEnabled;
-    actionButton.textContent = doublePointsAudioEnabled ? "♫ Sound on" : "♫ Sound off";
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (doublePointsAudioEnabled && AudioContext) {
-      gameAudioContext ||= new AudioContext();
-      if (gameAudioContext.state === "suspended") await gameAudioContext.resume();
-    }
-    return;
-  }
-  if (action === "kick-player") {
-    if (!confirm(`Remove ${actionButton.getAttribute("aria-label")?.replace(/^Remove /, "") || "this player"} from the show?`)) return;
-    const room = JSON.parse(sessionStorage.getItem("paradox-host") || "null");
-    try {
-      await post(`/api/games/${encodeURIComponent(room.pin)}/players/${encodeURIComponent(actionButton.dataset.playerId)}/kick`, undefined, { "X-Host-Key": room.hostKey });
-      await refreshRoom();
-    } catch (error) { notify(error.message); }
-    return;
-  }
   if (action === "focus-pin") {
     document.getElementById("game-pin")?.focus();
-    return;
-  }
-  if (action === "template") {
-    const form = document.querySelector('form[data-form="create"]');
-    const hasContent = Boolean(form && (form.querySelector("#quiz-name").value.trim() ||
-      [...form.querySelectorAll(".question-prompt")].some(input => input.value.trim())));
-    if (hasContent && !confirm("Replace the current show with this template?")) return;
-    const templates = {
-      blank: { name: "", question: newQuestion() },
-      quiz: { name: "Quick quiz", question: { ...newQuestion(), prompt: "Which planet is known as the Red Planet?", options: ["Venus", "Mars"], correctOptionIndex: 1 } },
-      poll: { name: "Audience poll", question: { ...newQuestion(), type: "Survey", prompt: "Which topic should we explore next?", options: ["Space", "The ocean"] } },
-      prediction: { name: "Make a prediction", question: { ...newQuestion(), type: "Prediction", prompt: "Which team will score first?", options: ["Blue team", "Gold team"] } },
-      "would-you-rather": { name: "Would you rather?", question: { ...newQuestion(), type: "WouldYouRather", prompt: "Would you rather explore space or the deep sea?", options: ["Explore space", "Explore the deep sea"] } },
-      story: { name: "Story circle", question: { ...newQuestion(), type: "StoryPrompt", prompt: "Add one sentence to the story: The tiny door opened and..." } },
-      challenge: { name: "Answer challenge", question: { ...newQuestion(), type: "TypeAnswer", prompt: "Name the largest planet in our solar system.", acceptedAnswers: ["Jupiter"] } }
-    };
-    const template = templates[actionButton.dataset.template] || templates.blank;
-    questions = [template.question];
-    if (!savedQuizId || actionButton.dataset.template !== "blank")
-      document.getElementById("quiz-name").value = template.name;
-    drawQuestionCards();
     return;
   }
   if (action === "copy-invite") {
@@ -1151,19 +857,6 @@ document.addEventListener("click", async event => {
     document.querySelector(`[data-question="${questions.length - 1}"] .question-prompt`)?.focus();
     return;
   }
-  if (action === "add-rule-block") {
-    syncShowSettingsFromForm();
-    if (showSettings.ruleBlocks.length >= 10) return notify("A show can have up to 10 event/action rules.");
-    showSettings.ruleBlocks.push({ trigger: "CorrectAnswer", action: "AddCurrency", amount: 1 });
-    drawRuleBlocks();
-    return;
-  }
-  if (action === "remove-rule-block") {
-    syncShowSettingsFromForm();
-    showSettings.ruleBlocks.splice(Number(actionButton.dataset.index), 1);
-    drawRuleBlocks();
-    return;
-  }
   if (action === "remove-question") {
     syncQuestionsFromForm();
     questions.splice(Number(actionButton.dataset.index), 1);
@@ -1212,26 +905,10 @@ document.addEventListener("click", async event => {
     } catch (error) { notify(error.message); }
     return;
   }
-  if (["pause", "resume", "reveal", "skip"].includes(action)) {
-    const room = JSON.parse(sessionStorage.getItem("paradox-host") || "null");
-    try {
-      await post(`/api/games/${encodeURIComponent(room.pin)}/${action}`, undefined, { "X-Host-Key": room.hostKey });
-      await refreshRoom();
-    } catch (error) { notify(error.message); }
-    return;
-  }
   if (action === "next") {
     const room = JSON.parse(sessionStorage.getItem("paradox-host") || "null");
     try {
       await post(`/api/games/${room.pin}/next`, undefined, { "X-Host-Key": room.hostKey });
-      await refreshRoom();
-    } catch (error) { notify(error.message); }
-    return;
-  }
-  if (action === "double-points") {
-    const room = JSON.parse(sessionStorage.getItem("paradox-player") || "null");
-    try {
-      await post(`/api/games/${encodeURIComponent(room.pin)}/powerups/double-points`, undefined, { "X-Player-Id": room.playerId });
       await refreshRoom();
     } catch (error) { notify(error.message); }
     return;
@@ -1250,39 +927,7 @@ document.addEventListener("input", event => {
   if (event.target.id === "game-pin") event.target.value = event.target.value.replace(/\D/g, "").slice(0, 6);
 });
 
-document.addEventListener("change", async event => {
-  if (event.target.id === "player-limit") {
-    const teamSelect = document.getElementById("team-count");
-    const maxTeams = Math.min(8, Number(event.target.value));
-    const currentTeams = Math.min(Number(teamSelect.value), maxTeams);
-    const teamOptions = [[1, "Solo play"], [2, "2 teams"], [3, "3 teams"], [4, "4 teams"], [6, "6 teams"], [8, "8 teams"]]
-      .filter(([count]) => count <= maxTeams);
-    teamSelect.innerHTML = teamOptions.map(([count, label]) => `<option value="${count}" ${count === currentTeams ? "selected" : ""}>${label}</option>`).join("");
-    syncShowSettingsFromForm();
-    return;
-  }
-  if (event.target.matches(".player-profile-select")) {
-    const room = JSON.parse(sessionStorage.getItem("paradox-host") || "null");
-    const playerId = event.target.dataset.playerId;
-    if (!room || !playerId) return;
-    event.target.disabled = true;
-    try {
-      await post(`/api/games/${encodeURIComponent(room.pin)}/players/${encodeURIComponent(playerId)}/profile`, {
-        profileLabel: event.target.value || null
-      }, { "X-Host-Key": room.hostKey });
-      await refreshRoom();
-    } catch (error) {
-      event.target.disabled = false;
-      notify(error.message);
-    }
-    return;
-  }
-  if (event.target.matches(".profile-label-input")) {
-    syncQuestionsFromForm();
-    syncShowSettingsFromForm();
-    drawQuestionCards();
-    return;
-  }
+document.addEventListener("change", event => {
   if (event.target.matches('input[name="theme"]')) {
     currentTheme = event.target.value;
     setTheme(currentTheme);
@@ -1298,7 +943,6 @@ async function hostQuiz(quiz) {
     quizName: quiz.quizName,
     description: quiz.description,
     theme: quiz.theme,
-    showSettings: quiz.showSettings || defaultShowSettings(),
     questions: quiz.questions
   });
   sessionStorage.removeItem("paradox-player");

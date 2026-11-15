@@ -31,7 +31,7 @@ internal static class GameEndpoints
             var playerId = request.Headers["X-Player-Id"].FirstOrDefault();
             var snapshot = games.GetSnapshot(pin, hostKey, playerId, out var unauthorized);
             if (unauthorized)
-                return TypedResults.Problem("Game access could not be verified.", statusCode: StatusCodes.Status401Unauthorized);
+                return TypedResults.Problem("Host access could not be verified.", statusCode: StatusCodes.Status401Unauthorized);
             return snapshot is null
                 ? TypedResults.Problem("That game PIN was not found.", statusCode: StatusCodes.Status404NotFound)
                 : TypedResults.Ok(snapshot);
@@ -86,56 +86,6 @@ internal static class GameEndpoints
         .ProducesProblem(StatusCodes.Status404NotFound)
         .ProducesProblem(StatusCodes.Status409Conflict);
 
-        MapHostAction(app, "pause", "PauseGame", "Pause the current question timer", (games, pin, key) => games.Pause(pin, key));
-        MapHostAction(app, "resume", "ResumeGame", "Resume a paused question timer", (games, pin, key) => games.Resume(pin, key));
-        MapHostAction(app, "reveal", "RevealAnswer", "Reveal the current answer early", (games, pin, key) => games.Reveal(pin, key));
-        MapHostAction(app, "skip", "SkipQuestion", "Skip the current question", (games, pin, key) => games.Skip(pin, key));
-
-        app.MapPost("/api/games/{pin}/players/{playerId}/kick", IResult (
-            string pin,
-            string playerId,
-            HttpRequest request,
-            IGameService games,
-            CancellationToken cancellationToken) =>
-        {
-            _ = cancellationToken;
-            return ToHttpResult(games.KickPlayer(
-                pin,
-                request.Headers["X-Host-Key"].FirstOrDefault() ?? string.Empty,
-                playerId));
-        })
-        .WithName("KickPlayer")
-        .WithSummary("Remove a player from a show")
-        .WithDescription("Allows the host to remove a player from the current show.")
-        .Produces<GameSnapshotResponse>()
-        .ProducesProblem(StatusCodes.Status401Unauthorized)
-        .ProducesProblem(StatusCodes.Status404NotFound)
-        .ProducesProblem(StatusCodes.Status409Conflict);
-
-        app.MapPost("/api/games/{pin}/players/{playerId}/profile", IResult (
-            string pin,
-            string playerId,
-            AssignPlayerProfileRequest body,
-            HttpRequest request,
-            IGameService games,
-            CancellationToken cancellationToken) =>
-        {
-            _ = cancellationToken;
-            return ToHttpResult(games.AssignProfile(
-                pin,
-                request.Headers["X-Host-Key"].FirstOrDefault() ?? string.Empty,
-                playerId,
-                body.ProfileLabel));
-        })
-        .WithName("AssignPlayerProfile")
-        .WithSummary("Assign a player profile in the lobby")
-        .WithDescription("Hosts may assign a configured content profile to each player before the show starts.")
-        .Produces<GameSnapshotResponse>()
-        .ProducesProblem(StatusCodes.Status400BadRequest)
-        .ProducesProblem(StatusCodes.Status401Unauthorized)
-        .ProducesProblem(StatusCodes.Status404NotFound)
-        .ProducesProblem(StatusCodes.Status409Conflict);
-
         app.MapPost("/api/games/{pin}/answers", IResult (
             string pin,
             SubmitAnswerRequest body,
@@ -152,24 +102,6 @@ internal static class GameEndpoints
         .WithDescription("Accepts one answer per player while the current question is open.")
         .Produces<GameSnapshotResponse>()
         .ProducesProblem(StatusCodes.Status400BadRequest)
-        .ProducesProblem(StatusCodes.Status401Unauthorized)
-        .ProducesProblem(StatusCodes.Status404NotFound)
-        .ProducesProblem(StatusCodes.Status409Conflict);
-
-        app.MapPost("/api/games/{pin}/powerups/double-points", IResult (
-            string pin,
-            HttpRequest request,
-            IGameService games,
-            CancellationToken cancellationToken) =>
-        {
-            _ = cancellationToken;
-            var playerId = request.Headers["X-Player-Id"].FirstOrDefault() ?? string.Empty;
-            return ToHttpResult(games.ArmDoublePoints(pin, playerId));
-        })
-        .WithName("ArmDoublePoints")
-        .WithSummary("Arm a one-use double-points power-up")
-        .WithDescription("Doubles a player's next correct answer once per show.")
-        .Produces<GameSnapshotResponse>()
         .ProducesProblem(StatusCodes.Status401Unauthorized)
         .ProducesProblem(StatusCodes.Status404NotFound)
         .ProducesProblem(StatusCodes.Status409Conflict);
@@ -192,31 +124,6 @@ internal static class GameEndpoints
         .ProducesProblem(StatusCodes.Status409Conflict);
 
         return app;
-    }
-
-    private static void MapHostAction(
-        WebApplication app,
-        string route,
-        string name,
-        string summary,
-        Func<IGameService, string, string, GameActionResult> action)
-    {
-        app.MapPost($"/api/games/{{pin}}/{route}", IResult (
-            string pin,
-            HttpRequest request,
-            IGameService games,
-            CancellationToken cancellationToken) =>
-        {
-            _ = cancellationToken;
-            var hostKey = request.Headers["X-Host-Key"].FirstOrDefault() ?? string.Empty;
-            return ToHttpResult(action(games, pin, hostKey));
-        })
-        .WithName(name)
-        .WithSummary(summary)
-        .Produces<GameSnapshotResponse>()
-        .ProducesProblem(StatusCodes.Status401Unauthorized)
-        .ProducesProblem(StatusCodes.Status404NotFound)
-        .ProducesProblem(StatusCodes.Status409Conflict);
     }
 
     private static IResult ToHttpResult(GameActionResult result) =>

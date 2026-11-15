@@ -49,7 +49,7 @@ internal sealed class QuizLibraryService : IQuizLibraryService
         await using var connection = await OpenConnectionAsync(cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT id, quiz_name, description, theme, questions_json, show_settings_json, created_at, updated_at
+            SELECT id, quiz_name, description, theme, questions_json, created_at, updated_at
             FROM saved_quizzes
             WHERE owner_hash = $owner_hash
             ORDER BY updated_at DESC;
@@ -66,7 +66,7 @@ internal sealed class QuizLibraryService : IQuizLibraryService
         await using var connection = await OpenConnectionAsync(cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT id, quiz_name, description, theme, questions_json, show_settings_json, created_at, updated_at
+            SELECT id, quiz_name, description, theme, questions_json, created_at, updated_at
             FROM saved_quizzes
             WHERE id = $id AND owner_hash = $owner_hash;
             """;
@@ -88,8 +88,7 @@ internal sealed class QuizLibraryService : IQuizLibraryService
         var ownerHash = HashOwnerKey(ownerKey);
         var id = Guid.NewGuid().ToString("N");
         var now = DateTimeOffset.UtcNow;
-        var normalizedRequest = Normalize(request);
-        var quiz = ToResponse(id, normalizedRequest, now, now);
+        var quiz = ToResponse(id, request, now, now);
 
         await using var connection = await OpenConnectionAsync(cancellationToken);
         await using var transaction = connection.BeginTransaction();
@@ -107,10 +106,10 @@ internal sealed class QuizLibraryService : IQuizLibraryService
         {
             command.Transaction = transaction;
             command.CommandText = """
-                INSERT INTO saved_quizzes (id, owner_hash, quiz_name, description, theme, questions_json, show_settings_json, created_at, updated_at)
-                VALUES ($id, $owner_hash, $quiz_name, $description, $theme, $questions_json, $show_settings_json, $created_at, $updated_at);
+                INSERT INTO saved_quizzes (id, owner_hash, quiz_name, description, theme, questions_json, created_at, updated_at)
+                VALUES ($id, $owner_hash, $quiz_name, $description, $theme, $questions_json, $created_at, $updated_at);
                 """;
-            AddQuizParameters(command, id, ownerHash, normalizedRequest, now, now);
+            AddQuizParameters(command, id, ownerHash, request, now, now);
             await command.ExecuteNonQueryAsync(cancellationToken);
         }
         await transaction.CommitAsync(cancellationToken);
@@ -136,11 +135,10 @@ internal sealed class QuizLibraryService : IQuizLibraryService
                 description = $description,
                 theme = $theme,
                 questions_json = $questions_json,
-                show_settings_json = $show_settings_json,
                 updated_at = $updated_at
             WHERE id = $id AND owner_hash = $owner_hash;
             """;
-        AddQuizParameters(command, id, ownerHash, Normalize(request), createdAt: null, DateTimeOffset.UtcNow);
+        AddQuizParameters(command, id, ownerHash, request, createdAt: null, DateTimeOffset.UtcNow);
         var changed = await command.ExecuteNonQueryAsync(cancellationToken);
         if (changed == 0)
             return new(QuizLibraryStatus.NotFound, null, null);
@@ -175,7 +173,6 @@ internal sealed class QuizLibraryService : IQuizLibraryService
                 description TEXT NOT NULL,
                 theme TEXT NOT NULL,
                 questions_json TEXT NOT NULL,
-                show_settings_json TEXT NOT NULL DEFAULT '{}',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -183,22 +180,6 @@ internal sealed class QuizLibraryService : IQuizLibraryService
                 ON saved_quizzes (owner_hash, updated_at DESC);
             """;
         command.ExecuteNonQuery();
-        using var migration = connection.CreateCommand();
-        migration.CommandText = "PRAGMA table_info(saved_quizzes);";
-        using var reader = migration.ExecuteReader();
-        var hasShowSettings = false;
-        while (reader.Read())
-        {
-            if (string.Equals(reader.GetString(1), "show_settings_json", StringComparison.Ordinal))
-                hasShowSettings = true;
-        }
-        reader.Close();
-        if (!hasShowSettings)
-        {
-            using var alter = connection.CreateCommand();
-            alter.CommandText = "ALTER TABLE saved_quizzes ADD COLUMN show_settings_json TEXT NOT NULL DEFAULT '{}';";
-            alter.ExecuteNonQuery();
-        }
     }
 
     private async Task<SqliteConnection> OpenConnectionAsync(CancellationToken cancellationToken)
@@ -226,115 +207,49 @@ internal sealed class QuizLibraryService : IQuizLibraryService
             return "The quiz description must be 280 characters or fewer.";
         if (!QuizThemes.IsSupported(request.Theme))
             return "Choose one of the available quiz themes.";
-        if (request.ShowSettings is null ||
-            request.ShowSettings.PlayerLimit is < 1 or > 40 ||
-            request.ShowSettings.TeamCount is < 1 or > 8 ||
-            request.ShowSettings.TeamCount > request.ShowSettings.PlayerLimit ||
-            request.ShowSettings.BasePoints is < 0 or > 5000 ||
-            request.ShowSettings.SpeedBonusPoints is < 0 or > 5000)
-            return "Set a player limit from 1 to 40 and a team count from 1 to 8, no greater than the player limit.";
-        if (request.ShowSettings.ProfileLabels is null ||
-            request.ShowSettings.ProfileLabels.Count > 4 ||
-            request.ShowSettings.ProfileLabels.Any(label => string.IsNullOrWhiteSpace(label) || label.Trim().Length > 30) ||
-            request.ShowSettings.ProfileLabels.Select(label => label.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).Count() != request.ShowSettings.ProfileLabels.Count)
-            return "Add up to four unique profile labels, each 30 characters or fewer.";
-        if (string.IsNullOrWhiteSpace(request.ShowSettings.CurrencyName) ||
-            request.ShowSettings.CurrencyName.Trim().Length > 20 ||
-            request.ShowSettings.RuleBlocks is null ||
-            request.ShowSettings.RuleBlocks.Count > 10 ||
-            request.ShowSettings.RuleBlocks.Any(rule =>
-                !Enum.IsDefined(rule.Trigger) ||
-                !Enum.IsDefined(rule.Action) ||
-                rule.Amount is < 1 or > 1000))
-            return "Choose a currency name and up to 10 valid event/action rules with amounts from 1 to 1,000.";
         foreach (var question in request.Questions)
         {
             if (question is null || string.IsNullOrWhiteSpace(question.Prompt))
                 return "Every question needs a prompt.";
-            if (question.ProfilePrompts is null ||
-                question.ProfilePrompts.Count > request.ShowSettings.ProfileLabels.Count ||
-                question.ProfilePrompts.Keys.Select(label => label.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).Count() != question.ProfilePrompts.Count ||
-                question.ProfilePrompts.Any(variant =>
-                    string.IsNullOrWhiteSpace(variant.Value) ||
-                    variant.Value.Trim().Length > 240 ||
-                    !request.ShowSettings.ProfileLabels.Any(label =>
-                        string.Equals(label.Trim(), variant.Key.Trim(), StringComparison.OrdinalIgnoreCase))))
-                return "Each profile-specific question must use a configured profile and contain 1 to 240 characters.";
             if (!Enum.IsDefined(question.Type) || question.TimeLimitSeconds is < 5 or > 60)
                 return "Check the question type and timer on each question.";
-            if (question.Type is QuestionType.MultipleChoice or QuestionType.Survey or QuestionType.Prediction or QuestionType.WouldYouRather)
+            if (question.Type is QuestionType.MultipleChoice or QuestionType.Survey)
             {
                 if (question.Options is null ||
                     question.Options.Count is < 2 or > 4 ||
                     question.Options.Any(string.IsNullOrWhiteSpace) ||
-                    (question.Type == QuestionType.WouldYouRather && question.Options.Count != 2) ||
-                    (question.Type is (QuestionType.MultipleChoice or QuestionType.Prediction) &&
+                    (question.Type == QuestionType.MultipleChoice &&
                      (question.CorrectOptionIndex < 0 || question.CorrectOptionIndex >= question.Options.Count)))
-                    return "Check the answer choices and outcome on each question.";
+                    return "Check the answer choices and correct answer on each question.";
             }
-            else if (question.Type == QuestionType.TypeAnswer &&
-                     (question.AcceptedAnswers is null ||
+            else if (question.AcceptedAnswers is null ||
                      question.AcceptedAnswers.Count is < 1 or > 10 ||
-                     question.AcceptedAnswers.Any(answer => string.IsNullOrWhiteSpace(answer) || answer.Trim().Length > 100)))
+                     question.AcceptedAnswers.Any(answer => string.IsNullOrWhiteSpace(answer) || answer.Trim().Length > 100))
             {
                 return "Type-answer questions need between 1 and 10 accepted answers, each 100 characters or fewer.";
-            }
-            else if (question.Type == QuestionType.StoryPrompt && question.AcceptedAnswers is { Count: > 0 })
-            {
-                return "Story prompts do not use accepted answers.";
             }
         }
         return null;
     }
 
-    private static SaveQuizRequest Normalize(SaveQuizRequest request)
-    {
-        var labels = request.ShowSettings.ProfileLabels.Select(label => label.Trim()).ToList();
-        return request with
-        {
-            QuizName = request.QuizName.Trim(),
-            Description = request.Description?.Trim() ?? "",
-            ShowSettings = request.ShowSettings with
-            {
-                ProfileLabels = labels,
-                CurrencyName = request.ShowSettings.CurrencyName.Trim(),
-                RuleBlocks = request.ShowSettings.RuleBlocks.ToList()
-            },
-            Questions = request.Questions.Select(question => question with
-            {
-                Prompt = question.Prompt.Trim(),
-                ProfilePrompts = question.ProfilePrompts
-                    .Where(variant => !string.IsNullOrWhiteSpace(variant.Value))
-                    .ToDictionary(
-                        variant => labels.First(label =>
-                            string.Equals(label, variant.Key.Trim(), StringComparison.OrdinalIgnoreCase)),
-                        variant => variant.Value.Trim(),
-                        StringComparer.OrdinalIgnoreCase)
-            }).ToList()
-        };
-    }
-
     private static SavedQuizResponse ReadQuiz(SqliteDataReader reader)
     {
-        var createdAt = DateTimeOffset.Parse(reader.GetString(6), System.Globalization.CultureInfo.InvariantCulture);
-        var updatedAt = DateTimeOffset.Parse(reader.GetString(7), System.Globalization.CultureInfo.InvariantCulture);
+        var createdAt = DateTimeOffset.Parse(reader.GetString(5), System.Globalization.CultureInfo.InvariantCulture);
+        var updatedAt = DateTimeOffset.Parse(reader.GetString(6), System.Globalization.CultureInfo.InvariantCulture);
         var questions = JsonSerializer.Deserialize<List<QuizQuestionRequest>>(reader.GetString(4), JsonOptions)
             ?? throw new InvalidDataException("A saved quiz contains invalid question data.");
-        var showSettings = JsonSerializer.Deserialize<ShowSettings>(reader.GetString(5), JsonOptions)
-            ?? new ShowSettings();
         return new SavedQuizResponse(
             reader.GetString(0),
             reader.GetString(1),
             reader.GetString(2),
             reader.GetString(3),
             questions,
-            showSettings,
             createdAt,
             updatedAt);
     }
 
     private static SavedQuizResponse ToResponse(string id, SaveQuizRequest request, DateTimeOffset createdAt, DateTimeOffset updatedAt) =>
-        new(id, request.QuizName.Trim(), request.Description?.Trim() ?? "", request.Theme, request.Questions, request.ShowSettings, createdAt, updatedAt);
+        new(id, request.QuizName.Trim(), request.Description?.Trim() ?? "", request.Theme, request.Questions, createdAt, updatedAt);
 
     private static void AddQuizParameters(
         SqliteCommand command,
@@ -350,7 +265,6 @@ internal sealed class QuizLibraryService : IQuizLibraryService
         command.Parameters.AddWithValue("$description", request.Description?.Trim() ?? "");
         command.Parameters.AddWithValue("$theme", request.Theme);
         command.Parameters.AddWithValue("$questions_json", JsonSerializer.Serialize(request.Questions, JsonOptions));
-        command.Parameters.AddWithValue("$show_settings_json", JsonSerializer.Serialize(request.ShowSettings, JsonOptions));
         command.Parameters.AddWithValue("$created_at", createdAt?.ToString("O") ?? (object)DBNull.Value);
         command.Parameters.AddWithValue("$updated_at", updatedAt.ToString("O"));
     }

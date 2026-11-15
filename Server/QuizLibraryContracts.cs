@@ -20,9 +20,6 @@ public sealed record SaveQuizRequest
     /// <summary>Questions to play in order.</summary>
     [Required, MinLength(1), MaxLength(30)]
     public required List<QuizQuestionRequest> Questions { get; init; }
-
-    /// <summary>Creator-controlled rules for a live show.</summary>
-    public ShowSettings ShowSettings { get; init; } = new();
 }
 
 /// <summary>A saved quiz available to its creator.</summary>
@@ -32,7 +29,6 @@ public sealed record SavedQuizResponse(
     string Description,
     string Theme,
     IReadOnlyList<QuizQuestionRequest> Questions,
-    ShowSettings ShowSettings,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
