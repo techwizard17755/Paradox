@@ -241,12 +241,9 @@ internal sealed class QuizLibraryService : IQuizLibraryService
         if (string.IsNullOrWhiteSpace(request.ShowSettings.CurrencyName) ||
             request.ShowSettings.CurrencyName.Trim().Length > 20 ||
             request.ShowSettings.RuleBlocks is null ||
-            request.ShowSettings.RuleBlocks.Count > 10 ||
-            request.ShowSettings.RuleBlocks.Any(rule =>
-                !Enum.IsDefined(rule.Trigger) ||
-                !Enum.IsDefined(rule.Action) ||
-                rule.Amount is < 1 or > 1000))
-            return "Choose a currency name and up to 10 valid event/action rules with amounts from 1 to 1,000.";
+            request.ShowSettings.RuleBlocks.Count > 20 ||
+            request.ShowSettings.RuleBlocks.Any(rule => !ShowRuleValidation.IsValid(rule, request.ShowSettings)))
+            return "Choose a currency name and up to 20 valid show-program blocks.";
         foreach (var question in request.Questions)
         {
             if (question is null || string.IsNullOrWhiteSpace(question.Prompt))
@@ -298,7 +295,9 @@ internal sealed class QuizLibraryService : IQuizLibraryService
             {
                 ProfileLabels = labels,
                 CurrencyName = request.ShowSettings.CurrencyName.Trim(),
-                RuleBlocks = request.ShowSettings.RuleBlocks.ToList()
+                RuleBlocks = request.ShowSettings.RuleBlocks
+                    .Select(rule => rule with { ConditionValue = rule.ConditionValue?.Trim() ?? "" })
+                    .ToList()
             },
             Questions = request.Questions.Select(question => question with
             {

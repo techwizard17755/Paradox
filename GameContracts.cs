@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 
 namespace Paradox;
 
@@ -78,44 +79,117 @@ public sealed record ShowSettings
     [StringLength(20, MinimumLength = 1)]
     public string CurrencyName { get; init; } = "Coins";
 
-    /// <summary>Safe event/action blocks that update player currency.</summary>
+    /// <summary>Safe event, condition, and action blocks for this show.</summary>
     public List<ShowRuleBlock> RuleBlocks { get; init; } = [];
 }
 
-/// <summary>A safe, creator-configured event/action rule for a show.</summary>
+/// <summary>A safe, creator-configured event/condition/action rule for a show.</summary>
 public sealed record ShowRuleBlock
 {
-    /// <summary>Answer event that triggers this action.</summary>
+    /// <summary>Game event that triggers this block.</summary>
     public ShowRuleTrigger Trigger { get; init; }
 
-    /// <summary>Currency action to perform for the player.</summary>
+    /// <summary>Optional check that must pass before the action runs.</summary>
+    public ShowRuleCondition Condition { get; init; } = ShowRuleCondition.Always;
+
+    /// <summary>Value used by the selected condition, such as a score or team name.</summary>
+    [StringLength(40)]
+    public string ConditionValue { get; init; } = "";
+
+    /// <summary>Points or currency action to perform.</summary>
     public ShowRuleAction Action { get; init; }
 
-    /// <summary>Amount added to or removed from the player's currency.</summary>
+    /// <summary>Amount added or removed by the action.</summary>
     [Range(1, 1000)]
     public int Amount { get; init; } = 1;
 }
 
-/// <summary>Supported events for creator rule blocks.</summary>
+/// <summary>Supported game events for creator rule blocks.</summary>
 public enum ShowRuleTrigger
 {
     /// <summary>The player submits a correct answer.</summary>
     CorrectAnswer,
-    /// <summary>The player submits an incorrect answer.</summary>
-    IncorrectAnswer
+    /// <summary>The player submits an incorrect scored answer.</summary>
+    IncorrectAnswer,
+    /// <summary>The player submits any answer, including an unscored response.</summary>
+    AnyAnswer,
+    /// <summary>A player joins the lobby.</summary>
+    PlayerJoined
+}
+
+/// <summary>Supported checks for creator rule blocks.</summary>
+public enum ShowRuleCondition
+{
+    /// <summary>Always run when the selected event occurs.</summary>
+    Always,
+    /// <summary>Run when the player's score is at least the configured value.</summary>
+    ScoreAtLeast,
+    /// <summary>Run when the player's currency is at least the configured value.</summary>
+    CurrencyAtLeast,
+    /// <summary>Run when the player belongs to the selected team.</summary>
+    TeamIs,
+    /// <summary>Run when the player has the selected profile.</summary>
+    ProfileIs,
+    /// <summary>Run when the active question uses the selected format.</summary>
+    QuestionTypeIs,
+    /// <summary>Run when the number of joined players reaches the configured value.</summary>
+    PlayerCountAtLeast,
+    /// <summary>Run when the current round number reaches the configured value.</summary>
+    RoundNumberAtLeast
 }
 
 /// <summary>Supported actions for creator rule blocks.</summary>
 public enum ShowRuleAction
 {
-    /// <summary>Add currency to the player's balance.</summary>
+    /// <summary>Add currency to the triggering player's balance.</summary>
     AddCurrency,
-    /// <summary>Remove currency from the player's balance, not below zero.</summary>
+    /// <summary>Remove currency from the triggering player's balance, not below zero.</summary>
     RemoveCurrency,
-    /// <summary>Add points to the player's score.</summary>
+    /// <summary>Add points to the triggering player's score.</summary>
     AddPoints,
-    /// <summary>Remove points from the player's score, not below zero.</summary>
-    RemovePoints
+    /// <summary>Remove points from the triggering player's score, not below zero.</summary>
+    RemovePoints,
+    /// <summary>Add points to every player on the triggering player's team.</summary>
+    AddTeamPoints
+}
+
+internal static class ShowRuleValidation
+{
+    public static bool IsValid(ShowRuleBlock? rule, ShowSettings settings)
+    {
+        if (rule is null ||
+            !Enum.IsDefined(rule.Trigger) ||
+            !Enum.IsDefined(rule.Condition) ||
+            !Enum.IsDefined(rule.Action) ||
+            rule.Amount is < 1 or > 1000 ||
+            rule.ConditionValue is null ||
+            rule.ConditionValue.Length > 40)
+            return false;
+
+        return rule.Condition switch
+        {
+            ShowRuleCondition.Always => true,
+            ShowRuleCondition.ScoreAtLeast or ShowRuleCondition.CurrencyAtLeast =>
+                int.TryParse(rule.ConditionValue, NumberStyles.None, CultureInfo.InvariantCulture, out var threshold) &&
+                threshold is >= 0 and <= 1_000_000,
+            ShowRuleCondition.PlayerCountAtLeast =>
+                int.TryParse(rule.ConditionValue, NumberStyles.None, CultureInfo.InvariantCulture, out var playerCount) &&
+                playerCount is >= 1 and <= 40,
+            ShowRuleCondition.RoundNumberAtLeast =>
+                int.TryParse(rule.ConditionValue, NumberStyles.None, CultureInfo.InvariantCulture, out var roundNumber) &&
+                roundNumber is >= 1 and <= 30,
+            ShowRuleCondition.TeamIs =>
+                settings.TeamCount > 1 &&
+                Enumerable.Range(1, settings.TeamCount)
+                    .Any(team => string.Equals(rule.ConditionValue, $"Team {team}", StringComparison.Ordinal)),
+            ShowRuleCondition.ProfileIs =>
+                settings.ProfileLabels.Any(label =>
+                    string.Equals(rule.ConditionValue.Trim(), label.Trim(), StringComparison.OrdinalIgnoreCase)),
+            ShowRuleCondition.QuestionTypeIs =>
+                Enum.GetNames<QuestionType>().Contains(rule.ConditionValue, StringComparer.Ordinal),
+            _ => false
+        };
+    }
 }
 
 /// <summary>Payload for joining a game with a display name.</summary>

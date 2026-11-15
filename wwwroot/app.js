@@ -5,6 +5,12 @@ const choiceQuestionTypes = ["MultipleChoice", "Survey", "Prediction", "WouldYou
 const unscoredChoiceTypes = ["Survey", "WouldYouRather"];
 const scoredQuestionTypes = ["MultipleChoice", "Prediction", "TypeAnswer"];
 const textQuestionTypes = ["TypeAnswer", "StoryPrompt"];
+const ruleThresholdRanges = {
+  ScoreAtLeast: [0, 1000000],
+  CurrencyAtLeast: [0, 1000000],
+  PlayerCountAtLeast: [1, 40],
+  RoundNumberAtLeast: [1, 30]
+};
 const localQuizLibraryKey = "paradox-local-quizzes";
 const localQuizMigrationKey = "paradox-local-quizzes-migrated";
 let questions = [newQuestion()];
@@ -264,8 +270,10 @@ function syncShowSettingsFromForm() {
       .map(label => label.trim())
       .filter(Boolean),
     currencyName: document.getElementById("currency-name").value.trim(),
-    ruleBlocks: [...document.querySelectorAll(".rule-block")].map(block => ({
+    ruleBlocks: [...document.querySelectorAll(".program-rule")].map(block => ({
       trigger: block.querySelector(".rule-trigger").value,
+      condition: block.querySelector(".rule-condition").value,
+      conditionValue: block.querySelector(".rule-condition-value")?.value.trim() || "",
       action: block.querySelector(".rule-action").value,
       amount: Number(block.querySelector(".rule-amount").value)
     }))
@@ -352,13 +360,13 @@ function renderBuilder(quiz = null) {
               </label>
             </div>
             <div class="rule-builder">
-              <div class="rule-builder-heading"><strong>Build a show rule</strong><span>When an answer event happens, change the player’s points or show currency.</span></div>
+              <div class="rule-builder-heading"><strong>Program your show</strong><span>Connect event, condition, and action blocks. Rules run from top to bottom.</span></div>
               <label class="field-label" for="currency-name">Currency name
                 <input id="currency-name" class="text-field" maxlength="20" value="${escapeHtml(showSettings.currencyName || "Coins")}" placeholder="Coins">
               </label>
               <div id="rule-block-list"></div>
-              <button class="quiet-btn" type="button" data-action="add-rule-block" ${showSettings.ruleBlocks.length >= 10 ? "disabled" : ""}>＋ Add event + action</button>
-              <small class="rule-builder-note">Rules run once for each scored answer. Currency is play-only and resets for every show.</small>
+              <button class="quiet-btn" type="button" data-action="add-rule-block" ${showSettings.ruleBlocks.length >= 20 ? "disabled" : ""}>＋ Add program block</button>
+              <small class="rule-builder-note">Programs can react to joins and answers, check scores, currency, player count, round, team, profile, or question type, then award player/team points or currency. They use safe built-in blocks, not executable code.</small>
             </div>
         </section>
         <div id="question-list" class="question-list"></div>
@@ -409,9 +417,28 @@ function quizPayload(form) {
     throw new Error("Set base points and speed bonus from 0 to 5,000.");
   if (!payload.showSettings.currencyName || payload.showSettings.currencyName.length > 20)
     throw new Error("Give your show currency a name of 1 to 20 characters.");
-  if (payload.showSettings.ruleBlocks.length > 10 ||
+  if (payload.showSettings.ruleBlocks.length > 20 ||
       payload.showSettings.ruleBlocks.some(rule => !Number.isInteger(rule.amount) || rule.amount < 1 || rule.amount > 1000))
-    throw new Error("Each show rule must have an amount from 1 to 1,000. You can add up to 10 rules.");
+    throw new Error("Each program block must use an amount from 1 to 1,000. You can add up to 20 blocks.");
+  for (const rule of payload.showSettings.ruleBlocks) {
+    const thresholdRange = ruleThresholdRanges[rule.condition];
+    if (thresholdRange &&
+        (!/^\d+$/.test(rule.conditionValue) ||
+         Number(rule.conditionValue) < thresholdRange[0] ||
+         Number(rule.conditionValue) > thresholdRange[1]))
+      throw new Error(`Enter a ${rule.condition === "PlayerCountAtLeast" ? "player count" : rule.condition === "RoundNumberAtLeast" ? "round number" : "condition threshold"} from ${thresholdRange[0]} to ${thresholdRange[1]}.`);
+    if (rule.condition === "TeamIs" &&
+        (!/^Team [1-8]$/.test(rule.conditionValue) ||
+         Number(rule.conditionValue.slice(5)) > payload.showSettings.teamCount ||
+         payload.showSettings.teamCount < 2))
+      throw new Error("Choose a team condition that matches the teams enabled for this show.");
+    if (rule.condition === "ProfileIs" &&
+        !labelsContain(payload.showSettings.profileLabels, rule.conditionValue))
+      throw new Error("Choose a profile condition from the labels configured for this show.");
+    if (rule.condition === "QuestionTypeIs" &&
+        !["MultipleChoice", "Survey", "Prediction", "WouldYouRather", "TypeAnswer", "StoryPrompt"].includes(rule.conditionValue))
+      throw new Error("Choose a supported question type for the program condition.");
+  }
   if (labels.length > 4 || labels.some(label => label.length > 30) ||
       new Set(labels.map(label => label.toLocaleLowerCase())).size !== labels.length)
     throw new Error("Add up to four unique profile labels, each 30 characters or fewer.");
@@ -425,23 +452,86 @@ function drawRuleBlocks() {
   const list = document.getElementById("rule-block-list");
   if (!list) return;
   const rules = showSettings.ruleBlocks || [];
+  const questionTypeOptions = [
+    ["MultipleChoice", "Multiple choice"], ["Prediction", "Prediction"], ["Survey", "Survey"],
+    ["WouldYouRather", "Would you rather"], ["TypeAnswer", "Typed answer"], ["StoryPrompt", "Story prompt"]
+  ];
+  const conditionValueControl = (rule, index) => {
+    const value = escapeHtml(rule.conditionValue || "");
+    if (rule.condition === "Always") return "";
+    if (ruleThresholdRanges[rule.condition]) {
+      const [min, max] = ruleThresholdRanges[rule.condition];
+      return `<input class="text-field rule-condition-value" aria-label="Condition threshold for block ${index + 1}" type="number" min="${min}" max="${max}" value="${value}" placeholder="${min}">`;
+    }
+    const options = rule.condition === "TeamIs"
+      ? Array.from({ length: Math.max(0, showSettings.teamCount > 1 ? showSettings.teamCount : 0) }, (_, team) => [`Team ${team + 1}`, `Team ${team + 1}`])
+      : rule.condition === "ProfileIs"
+        ? showSettings.profileLabels.map(label => [label, label])
+        : questionTypeOptions;
+    const emptyLabel = rule.condition === "TeamIs" && options.length === 0
+      ? "Enable teams above first"
+      : rule.condition === "ProfileIs" && options.length === 0
+        ? "Add a profile label above first"
+        : "Choose a value";
+    return `<select class="timer-select rule-condition-value" aria-label="Condition value for block ${index + 1}">
+      <option value="">${emptyLabel}</option>
+      ${options.map(([optionValue, label]) => `<option value="${escapeHtml(optionValue)}" ${value === escapeHtml(optionValue) ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
+    </select>`;
+  };
   list.innerHTML = rules.map((rule, index) => `
-    <div class="rule-block">
-      <span class="rule-block-when">WHEN</span>
-      <select class="timer-select rule-trigger" aria-label="Rule event ${index + 1}">
-        <option value="CorrectAnswer" ${rule.trigger === "CorrectAnswer" ? "selected" : ""}>answer is correct</option>
-        <option value="IncorrectAnswer" ${rule.trigger === "IncorrectAnswer" ? "selected" : ""}>answer is incorrect</option>
-      </select>
-      <span class="rule-block-then">THEN</span>
-      <select class="timer-select rule-action" aria-label="Rule action ${index + 1}">
-        <option value="AddCurrency" ${rule.action === "AddCurrency" ? "selected" : ""}>add currency</option>
-        <option value="RemoveCurrency" ${rule.action === "RemoveCurrency" ? "selected" : ""}>remove currency</option>
-        <option value="AddPoints" ${rule.action === "AddPoints" ? "selected" : ""}>add points</option>
-        <option value="RemovePoints" ${rule.action === "RemovePoints" ? "selected" : ""}>remove points</option>
-      </select>
-      <input class="text-field rule-amount" aria-label="Rule amount ${index + 1}" type="number" min="1" max="1000" value="${Number(rule.amount) || 1}">
-      <button type="button" class="remove-answer" data-action="remove-rule-block" data-index="${index}" aria-label="Remove rule">×</button>
-    </div>`).join("");
+    <article class="program-rule">
+      <div class="program-rule-heading">
+        <span class="program-rule-number">BLOCK ${String(index + 1).padStart(2, "0")}</span>
+        <div class="program-rule-order">
+          <button type="button" class="program-move-btn" data-action="move-rule-block" data-index="${index}" data-direction="-1" aria-label="Move block ${index + 1} up" ${index === 0 ? "disabled" : ""}>↑</button>
+          <button type="button" class="program-move-btn" data-action="move-rule-block" data-index="${index}" data-direction="1" aria-label="Move block ${index + 1} down" ${index === rules.length - 1 ? "disabled" : ""}>↓</button>
+          <button type="button" class="remove-answer" data-action="remove-rule-block" data-index="${index}" aria-label="Remove block ${index + 1}">×</button>
+        </div>
+      </div>
+      <div class="program-flow">
+        <label class="program-block program-event"><span>WHEN</span>
+          <select class="timer-select rule-trigger" aria-label="Event for block ${index + 1}">
+            <option value="CorrectAnswer" ${rule.trigger === "CorrectAnswer" ? "selected" : ""}>answer is correct</option>
+            <option value="IncorrectAnswer" ${rule.trigger === "IncorrectAnswer" ? "selected" : ""}>scored answer is incorrect</option>
+            <option value="AnyAnswer" ${rule.trigger === "AnyAnswer" ? "selected" : ""}>any answer is submitted</option>
+            <option value="PlayerJoined" ${rule.trigger === "PlayerJoined" ? "selected" : ""}>a player joins</option>
+          </select>
+        </label>
+        <span class="program-flow-link" aria-hidden="true">↓</span>
+        <label class="program-block program-condition"><span>IF</span>
+          <select class="timer-select rule-condition" aria-label="Condition for block ${index + 1}">
+            <option value="Always" ${rule.condition === "Always" ? "selected" : ""}>always</option>
+            <option value="ScoreAtLeast" ${rule.condition === "ScoreAtLeast" ? "selected" : ""}>score is at least…</option>
+            <option value="CurrencyAtLeast" ${rule.condition === "CurrencyAtLeast" ? "selected" : ""}>currency is at least…</option>
+            <option value="TeamIs" ${rule.condition === "TeamIs" ? "selected" : ""}>player is on team…</option>
+            <option value="ProfileIs" ${rule.condition === "ProfileIs" ? "selected" : ""}>player has profile…</option>
+            <option value="QuestionTypeIs" ${rule.condition === "QuestionTypeIs" ? "selected" : ""}>question type is…</option>
+            <option value="PlayerCountAtLeast" ${rule.condition === "PlayerCountAtLeast" ? "selected" : ""}>player count is at least…</option>
+            <option value="RoundNumberAtLeast" ${rule.condition === "RoundNumberAtLeast" ? "selected" : ""}>round number is at least…</option>
+          </select>
+          ${conditionValueControl(rule, index)}
+        </label>
+        <span class="program-flow-link" aria-hidden="true">↓</span>
+        <div class="program-block program-action">
+          <span>THEN</span>
+          <div class="program-action-fields">
+            <select class="timer-select rule-action" aria-label="Action for block ${index + 1}">
+              <option value="AddPoints" ${rule.action === "AddPoints" ? "selected" : ""}>add points to player</option>
+              <option value="RemovePoints" ${rule.action === "RemovePoints" ? "selected" : ""}>remove points from player</option>
+              <option value="AddTeamPoints" ${rule.action === "AddTeamPoints" ? "selected" : ""}>award points to their team</option>
+              <option value="AddCurrency" ${rule.action === "AddCurrency" ? "selected" : ""}>add currency to player</option>
+              <option value="RemoveCurrency" ${rule.action === "RemoveCurrency" ? "selected" : ""}>remove currency from player</option>
+            </select>
+            <input class="text-field rule-amount" aria-label="Action amount for block ${index + 1}" type="number" min="1" max="1000" value="${Number(rule.amount) || 1}">
+            <span class="program-action-unit">${rule.action === "AddCurrency" || rule.action === "RemoveCurrency" ? escapeHtml(showSettings.currencyName || "currency") : "points"}</span>
+          </div>
+        </div>
+      </div>
+    </article>`).join("");
+}
+
+function labelsContain(labels, value) {
+  return labels.some(label => label.toLocaleLowerCase() === value.toLocaleLowerCase());
 }
 
 async function saveCurrentQuiz(form) {
@@ -1153,8 +1243,11 @@ document.addEventListener("click", async event => {
   }
   if (action === "add-rule-block") {
     syncShowSettingsFromForm();
-    if (showSettings.ruleBlocks.length >= 10) return notify("A show can have up to 10 event/action rules.");
-    showSettings.ruleBlocks.push({ trigger: "CorrectAnswer", action: "AddCurrency", amount: 1 });
+    if (showSettings.ruleBlocks.length >= 20) return notify("A show can have up to 20 program blocks.");
+    showSettings.ruleBlocks.push({
+      trigger: "CorrectAnswer", condition: "Always", conditionValue: "",
+      action: "AddCurrency", amount: 1
+    });
     drawRuleBlocks();
     return;
   }
@@ -1162,6 +1255,17 @@ document.addEventListener("click", async event => {
     syncShowSettingsFromForm();
     showSettings.ruleBlocks.splice(Number(actionButton.dataset.index), 1);
     drawRuleBlocks();
+    return;
+  }
+  if (action === "move-rule-block") {
+    syncShowSettingsFromForm();
+    const index = Number(actionButton.dataset.index);
+    const target = index + Number(actionButton.dataset.direction);
+    if (target >= 0 && target < showSettings.ruleBlocks.length) {
+      [showSettings.ruleBlocks[index], showSettings.ruleBlocks[target]] =
+        [showSettings.ruleBlocks[target], showSettings.ruleBlocks[index]];
+      drawRuleBlocks();
+    }
     return;
   }
   if (action === "remove-question") {
@@ -1261,6 +1365,16 @@ document.addEventListener("change", async event => {
     syncShowSettingsFromForm();
     return;
   }
+  if (event.target.id === "team-count") {
+    syncShowSettingsFromForm();
+    drawRuleBlocks();
+    return;
+  }
+  if (event.target.matches(".rule-condition, .rule-action")) {
+    syncShowSettingsFromForm();
+    drawRuleBlocks();
+    return;
+  }
   if (event.target.matches(".player-profile-select")) {
     const room = JSON.parse(sessionStorage.getItem("paradox-host") || "null");
     const playerId = event.target.dataset.playerId;
@@ -1281,6 +1395,7 @@ document.addEventListener("change", async event => {
     syncQuestionsFromForm();
     syncShowSettingsFromForm();
     drawQuestionCards();
+    drawRuleBlocks();
     return;
   }
   if (event.target.matches('input[name="theme"]')) {

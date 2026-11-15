@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 
 namespace Paradox;
@@ -61,12 +62,9 @@ internal sealed class GameService : IGameService
         if (string.IsNullOrWhiteSpace(request.ShowSettings.CurrencyName) ||
             request.ShowSettings.CurrencyName.Trim().Length > 20 ||
             request.ShowSettings.RuleBlocks is null ||
-            request.ShowSettings.RuleBlocks.Count > 10 ||
-            request.ShowSettings.RuleBlocks.Any(rule =>
-                !Enum.IsDefined(rule.Trigger) ||
-                !Enum.IsDefined(rule.Action) ||
-                rule.Amount is < 1 or > 1000))
-            return (null, "Choose a currency name and up to 10 valid event/action rules with amounts from 1 to 1,000.");
+            request.ShowSettings.RuleBlocks.Count > 20 ||
+            request.ShowSettings.RuleBlocks.Any(rule => !ShowRuleValidation.IsValid(rule, request.ShowSettings)))
+            return (null, "Choose a currency name and up to 20 valid show-program blocks.");
 
         if (request.Questions is null || request.Questions.Count == 0 || request.Questions.Count > 30)
             return (null, "A quiz needs between 1 and 30 questions.");
@@ -139,7 +137,9 @@ internal sealed class GameService : IGameService
         {
             ProfileLabels = request.ShowSettings.ProfileLabels.Select(label => label.Trim()).ToList(),
             CurrencyName = request.ShowSettings.CurrencyName.Trim(),
-            RuleBlocks = request.ShowSettings.RuleBlocks.ToList()
+            RuleBlocks = request.ShowSettings.RuleBlocks
+                .Select(rule => rule with { ConditionValue = rule.ConditionValue?.Trim() ?? "" })
+                .ToList()
         };
 
         lock (_gate)
@@ -175,7 +175,9 @@ internal sealed class GameService : IGameService
 
             var playerId = Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
             var teamName = GetSmallestTeam(game);
-            game.Players.Add(playerId, new Player(playerId, name, teamName));
+            var player = new Player(playerId, name, teamName);
+            game.Players.Add(playerId, player);
+            ApplyRuleBlocks(game, player, ShowRuleTrigger.PlayerJoined);
             game.LeaderboardDirty = true;
             return new(GameActionStatus.Success, new PlayerJoinedResponse(playerId, game.Pin, name, teamName), null);
         }
@@ -379,8 +381,13 @@ internal sealed class GameService : IGameService
             }
             player.LastAnswerCorrect = IsScoredQuestion(question.Type) ? isCorrect : null;
 
-            if (IsScoredQuestion(question.Type))
-                ApplyRuleBlocks(game, player, isCorrect);
+            ApplyRuleBlocks(
+                game,
+                player,
+                !IsScoredQuestion(question.Type)
+                    ? ShowRuleTrigger.AnyAnswer
+                    : isCorrect ? ShowRuleTrigger.CorrectAnswer : ShowRuleTrigger.IncorrectAnswer,
+                question);
             game.LeaderboardDirty = true;
             return Success(game, playerId);
         }
@@ -587,10 +594,17 @@ internal sealed class GameService : IGameService
             .First();
     }
 
-    private static void ApplyRuleBlocks(Game game, Player player, bool isCorrect)
+    private static void ApplyRuleBlocks(
+        Game game,
+        Player player,
+        ShowRuleTrigger trigger,
+        QuizQuestionRequest? question = null)
     {
-        var trigger = isCorrect ? ShowRuleTrigger.CorrectAnswer : ShowRuleTrigger.IncorrectAnswer;
-        foreach (var rule in game.ShowSettings.RuleBlocks.Where(rule => rule.Trigger == trigger))
+        foreach (var rule in game.ShowSettings.RuleBlocks.Where(rule =>
+            (rule.Trigger == trigger ||
+             (rule.Trigger == ShowRuleTrigger.AnyAnswer &&
+              trigger is ShowRuleTrigger.CorrectAnswer or ShowRuleTrigger.IncorrectAnswer)) &&
+            RuleConditionMatches(game, player, rule, question)))
         {
             switch (rule.Action)
             {
@@ -606,10 +620,48 @@ internal sealed class GameService : IGameService
                 case ShowRuleAction.RemovePoints:
                     player.Score = Math.Max(0, player.Score - rule.Amount);
                     break;
+                case ShowRuleAction.AddTeamPoints:
+                    foreach (var teammate in game.Players.Values.Where(teammate =>
+                        player.TeamName is null
+                            ? teammate.Id == player.Id
+                            : string.Equals(teammate.TeamName, player.TeamName, StringComparison.Ordinal)))
+                        teammate.Score = Math.Min(1_000_000, teammate.Score + rule.Amount);
+                    break;
             }
-
         }
+        game.LeaderboardDirty = true;
     }
+
+    private static bool RuleConditionMatches(
+        Game game,
+        Player player,
+        ShowRuleBlock rule,
+        QuizQuestionRequest? question) =>
+        rule.Condition switch
+        {
+            ShowRuleCondition.Always => true,
+            ShowRuleCondition.ScoreAtLeast =>
+                int.TryParse(rule.ConditionValue, NumberStyles.None, CultureInfo.InvariantCulture, out var score) &&
+                player.Score >= score,
+            ShowRuleCondition.CurrencyAtLeast =>
+                int.TryParse(rule.ConditionValue, NumberStyles.None, CultureInfo.InvariantCulture, out var currency) &&
+                player.Currency >= currency,
+            ShowRuleCondition.PlayerCountAtLeast =>
+                int.TryParse(rule.ConditionValue, NumberStyles.None, CultureInfo.InvariantCulture, out var playerCount) &&
+                game.Players.Count >= playerCount,
+            ShowRuleCondition.RoundNumberAtLeast =>
+                int.TryParse(rule.ConditionValue, NumberStyles.None, CultureInfo.InvariantCulture, out var roundNumber) &&
+                question is not null &&
+                game.CurrentQuestionIndex + 1 >= roundNumber,
+            ShowRuleCondition.TeamIs =>
+                string.Equals(player.TeamName, rule.ConditionValue, StringComparison.Ordinal),
+            ShowRuleCondition.ProfileIs =>
+                string.Equals(player.ProfileLabel, rule.ConditionValue, StringComparison.OrdinalIgnoreCase),
+            ShowRuleCondition.QuestionTypeIs =>
+                question is not null &&
+                string.Equals(question.Type.ToString(), rule.ConditionValue, StringComparison.Ordinal),
+            _ => false
+        };
 
     private static bool IsScoredQuestion(QuestionType type) =>
         type is QuestionType.MultipleChoice or QuestionType.Prediction or QuestionType.TypeAnswer;
