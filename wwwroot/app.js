@@ -10,6 +10,7 @@ let pollInProgress = false;
 let lastSnapshotSignature = null;
 let previousRoomSnapshot = null;
 let savedQuizId = null;
+let builderDraft = null;
 let currentTheme = "violet";
 let showMode = "Quiz";
 let boardEnabled = false;
@@ -22,6 +23,11 @@ const quizThemes = [
   { id: "citrus", name: "Citrus", color: "#d3ff72" },
   { id: "coral", name: "Coral", color: "#ff887c" },
   { id: "sunset", name: "Sunset", color: "#ffb36b" }
+];
+const showModeOptions = [
+  ["Board", "Digital board game", "Players take turns rolling, moving, and resolving your custom tiles.", "▦"],
+  ["Quiz", "Quiz game", "Play questions together, with an optional subject wheel.", "✦"],
+  ["Custom", "Custom", "A flexible builder for combining board and quiz mechanics.", "⚙"]
 ];
 
 function newQuestion() {
@@ -85,9 +91,71 @@ function post(url, body, headers = {}) {
 }
 
 function setNav(active) {
-  document.querySelectorAll(".nav-link").forEach(button => {
-    button.classList.toggle("active", button.dataset.page === active);
+  document.querySelectorAll(".nav-link").forEach(link => {
+    const isActive = link.dataset.page === active;
+    link.classList.toggle("active", isActive);
+    if (isActive) link.setAttribute("aria-current", "page");
+    else link.removeAttribute("aria-current");
   });
+}
+
+function modePath(mode) {
+  return `/create/${mode.toLowerCase()}`;
+}
+
+function routeFor(pathname = window.location.pathname) {
+  const path = pathname.replace(/\/+$/, "").toLowerCase() || "/";
+  if (path === "/" || path === "/join") return { page: "join" };
+  if (path === "/create") return { page: "create" };
+  if (path === "/my-quizzes") return { page: "library" };
+
+  const mode = path.match(/^\/create\/(board|quiz|custom)$/);
+  if (mode) return { page: "builder", mode: mode[1][0].toUpperCase() + mode[1].slice(1) };
+
+  const room = path.match(/^\/(host|play)\/(\d{6})$/);
+  if (room) return { page: room[1], pin: room[2] };
+  return { page: "not-found" };
+}
+
+function setPath(path, replace = false) {
+  if (window.location.pathname === path && !window.location.search && !window.location.hash) return;
+  if (replace) window.history.replaceState(null, "", path);
+  else window.history.pushState(null, "", path);
+}
+
+function navigateTo(path, replace = false) {
+  setPath(path, replace);
+  renderRoute();
+}
+
+function renderRoute() {
+  const route = routeFor();
+  if (route.page === "join") return renderJoin();
+  if (route.page === "create") return renderCreateChooser();
+  if (route.page === "builder") return renderBuilder(null, route.mode);
+  if (route.page === "library") return void renderLibrary();
+
+  if (route.page === "host") {
+    const host = JSON.parse(sessionStorage.getItem("paradox-host") || "null");
+    if (host?.pin === route.pin) return startPolling("host", host);
+  }
+  if (route.page === "play") {
+    const player = JSON.parse(sessionStorage.getItem("paradox-player") || "null");
+    if (player?.pin === route.pin) return startPolling("player", player);
+  }
+
+  return navigateTo("/join", true);
+}
+
+function resetBuilder() {
+  questions = [newQuestion()];
+  savedQuizId = null;
+  builderDraft = null;
+  currentTheme = "violet";
+  showMode = "Quiz";
+  boardEnabled = false;
+  subjectWheelEnabled = false;
+  boardTiles = defaultBoardTiles();
 }
 
 function setTheme(theme = "violet") {
@@ -193,7 +261,7 @@ function renderJoin() {
         <p class="hero-copy">Jump into a live quiz with your crew. Pick a nickname, bring your best guesses, and see who comes out on top.</p>
         <div class="hero-actions">
           <button class="primary-btn" data-action="focus-pin">Enter a game PIN <span aria-hidden="true">→</span></button>
-          <button class="secondary-btn" data-page="create">Make your own ✦</button>
+          <a class="secondary-btn" href="/create" data-page="create" data-app-link>Make your own ✦</a>
         </div>
         <div class="social-proof"><div class="avatar-stack"><span class="avatar">J</span><span class="avatar">M</span><span class="avatar">A</span></div><span>Better together, one question at a time</span></div>
       </div>
@@ -206,6 +274,34 @@ function renderJoin() {
         <button class="primary-btn" type="submit">Let’s play <span aria-hidden="true">→</span></button>
         <div class="join-footnote"><span aria-hidden="true">✦</span> No account needed. Just a little friendly competition.</div>
       </form>
+    </section>`;
+}
+
+function renderCreateChooser() {
+  stopPolling();
+  setTheme();
+  setNav("create");
+  app.innerHTML = `
+    <div class="content-heading">
+      <p class="eyebrow"><span class="eyebrow-mark">✦</span> Your show, your rules</p>
+      <h1>What are we making?</h1>
+      <p>Choose a format to open its own studio. Your show, your rules.</p>
+    </div>
+    <section class="show-mode-section format-picker" aria-labelledby="show-mode-heading">
+      <div class="show-mode-heading">
+        <span class="field-label">Choose your game show format</span>
+        <h2 id="show-mode-heading">Start with a format</h2>
+        <p>You can customize the questions and settings on the next page.</p>
+      </div>
+      <div class="show-mode-options" role="group" aria-label="Game show format">
+        ${showModeOptions.map(([mode, title, description, icon]) => `
+          <a class="show-mode-card" href="${modePath(mode)}" data-app-link>
+            <span class="show-mode-icon" aria-hidden="true">${icon}</span>
+            <span class="show-mode-card-title">${title}${mode === "Custom" ? `<span class="advanced-tag">Advanced · less recommended</span>` : ""}</span>
+            <span class="show-mode-card-description">${description}</span>
+            <span class="format-card-link">Open ${title} <span aria-hidden="true">→</span></span>
+          </a>`).join("")}
+      </div>
     </section>`;
 }
 
@@ -247,29 +343,51 @@ function syncBuilderSettingsFromForm() {
   }
 }
 
-function renderBuilder(quiz = null) {
+function renderBuilder(quiz = null, mode = showMode) {
   stopPolling();
-  showMode = quiz?.mode || "Quiz";
-  boardEnabled = quiz ? Boolean(quiz.boardEnabled || showMode === "Board") : false;
-  subjectWheelEnabled = quiz ? Boolean(quiz.subjectWheelEnabled) : false;
-  boardTiles = quiz?.boardTiles?.length ? quiz.boardTiles.map(tile => ({ ...tile })) : defaultBoardTiles();
-  setTheme(quiz?.theme || "violet");
+  const previousMode = showMode;
+  showMode = quiz?.mode || mode || "Quiz";
+  if (quiz) {
+    builderDraft = {
+      quizName: quiz.quizName,
+      description: quiz.description,
+      theme: quiz.theme
+    };
+  }
+  const content = quiz || builderDraft || {};
+  boardEnabled = quiz
+    ? Boolean(quiz.boardEnabled || showMode === "Board")
+    : showMode === "Board" || showMode === "Custom" && Boolean(builderDraft?.boardEnabled);
+  subjectWheelEnabled = quiz
+    ? Boolean(quiz.subjectWheelEnabled)
+    : showMode === "Board" ? false : Boolean(builderDraft?.subjectWheelEnabled || subjectWheelEnabled);
+  if (quiz?.boardTiles?.length) boardTiles = quiz.boardTiles.map(tile => ({ ...tile }));
+  else if (builderDraft?.boardTiles?.length) boardTiles = builderDraft.boardTiles.map(tile => ({ ...tile }));
+  else if (showMode !== previousMode || boardTiles.length === 0) boardTiles = defaultBoardTiles();
+  setTheme(content.theme || currentTheme);
   setNav("create");
-  savedQuizId = quiz?.id || null;
-  currentTheme = quiz?.theme || "violet";
+  savedQuizId = quiz?.id || savedQuizId;
+  currentTheme = content.theme || currentTheme;
   const localLibrary = usesBrowserQuizLibrary();
+  const modeName = showModeOptions.find(([mode]) => mode === showMode)?.[1] || "Quiz game";
+  const modeDescription = showMode === "Board"
+    ? "Customize a board path, then add questions for its question tiles."
+    : showMode === "Custom"
+      ? "Combine a question game, subject wheel, and optional turn-based board."
+      : "Write questions and optionally add a subject wheel for the host.";
   app.innerHTML = `
+    <a class="quiet-btn create-back-link" href="/create" data-app-link>← All show formats</a>
     <div class="content-heading">
-      <p class="eyebrow"><span class="eyebrow-mark">✦</span> Your show, your rules</p>
-      <h1>Make a little magic.</h1>
-      <p>Build a quiz, host a board-game adventure, or combine your own show mechanics. Players join with one PIN.</p>
+      <p class="eyebrow"><span class="eyebrow-mark">✦</span> ${escapeHtml(modeName)}</p>
+      <h1>Build your ${escapeHtml(modeName.toLowerCase())}.</h1>
+      <p>${escapeHtml(modeDescription)} Players join with one PIN.</p>
     </div>
     <section class="builder-layout">
       <form class="builder-main" data-form="create">
         <label class="field-label" for="quiz-name">Give your quiz a name</label>
-        <input id="quiz-name" class="text-field" name="quizName" maxlength="80" value="${escapeHtml(quiz?.quizName || "")}" placeholder="e.g. The Great Movie Mix-Up" required>
+        <input id="quiz-name" class="text-field" name="quizName" maxlength="80" value="${escapeHtml(content.quizName || "")}" placeholder="e.g. The Great Movie Mix-Up" required>
         <label class="field-label" for="quiz-description" style="margin-top:17px">Add a short introduction <span style="color:var(--dim);font-weight:500">(optional)</span></label>
-        <textarea id="quiz-description" class="text-field quiz-description" name="description" maxlength="280" placeholder="Set the scene before everyone plays…">${escapeHtml(quiz?.description || "")}</textarea>
+        <textarea id="quiz-description" class="text-field quiz-description" name="description" maxlength="280" placeholder="Set the scene before everyone plays…">${escapeHtml(content.description || "")}</textarea>
         <span class="field-label" style="margin-top:18px">Pick your quiz look</span>
         <div class="theme-options" role="radiogroup" aria-label="Quiz color theme">
           ${quizThemes.map(theme => `
@@ -278,27 +396,9 @@ function renderBuilder(quiz = null) {
               <span class="theme-swatch">${theme.name}</span>
             </label>`).join("")}
         </div>
-        <div id="question-list" class="question-list"></div>
-        <section class="show-mode-section" aria-labelledby="show-mode-heading">
-          <div class="show-mode-heading">
-            <span class="field-label">Choose your game show format</span>
-            <h2 id="show-mode-heading">How do you want to play?</h2>
-            <p>Pick a format. You can still change it before hosting.</p>
-          </div>
-          <div class="show-mode-options" role="group" aria-label="Game show format">
-            ${[
-              ["Board", "Digital board game", "Players take turns rolling, moving, and resolving your custom tiles.", "▦"],
-              ["Quiz", "Quiz game", "Play questions together, with an optional subject wheel.", "✦"],
-              ["Custom", "Custom", "A flexible builder for combining board and quiz mechanics.", "⚙"]
-            ].map(([mode, title, description, icon]) => `
-              <button type="button" class="show-mode-card ${showMode === mode ? "selected" : ""}" data-action="select-mode" data-mode="${mode}" aria-pressed="${showMode === mode}">
-                <span class="show-mode-icon" aria-hidden="true">${icon}</span>
-                <span class="show-mode-card-title">${title}${mode === "Custom" ? `<span class="advanced-tag">Advanced · less recommended</span>` : ""}</span>
-                <span class="show-mode-card-description">${description}</span>
-              </button>`).join("")}
-          </div>
-        </section>
-        <div id="mode-settings"></div>
+        ${showMode === "Quiz"
+          ? `<div id="question-list" class="question-list"></div><div id="mode-settings"></div>`
+          : `<div id="mode-settings"></div><div id="question-list" class="question-list"></div>`}
         <div class="builder-actions">
           <button class="secondary-btn" type="button" data-action="add-question"><span aria-hidden="true">＋</span> Add a question</button>
           <span class="save-note">${savedQuizId ? "Editing a saved quiz" : localLibrary ? "Saves in this browser" : "Saves to your quiz library"}</span>
@@ -331,7 +431,7 @@ function quizPayload(form) {
   syncQuestionsFromForm();
   syncBuilderSettingsFromForm();
   const data = new FormData(form);
-  return {
+  const payload = {
     quizName: data.get("quizName").toString().trim(),
     description: data.get("description").toString().trim(),
     theme: data.get("theme")?.toString() || currentTheme,
@@ -341,6 +441,8 @@ function quizPayload(form) {
     boardTiles: showMode === "Board" || showMode === "Custom" && boardEnabled ? boardTiles : [],
     questions
   };
+  builderDraft = payload;
+  return payload;
 }
 
 async function saveCurrentQuiz(form) {
@@ -386,7 +488,7 @@ async function renderLibrary() {
     app.innerHTML = `
       <div class="library-header content-heading">
         <div><p class="eyebrow"><span class="eyebrow-mark">✦</span> Your quiz studio</p><h1>Your quizzes.</h1><p>Saved quizzes will live here, ready to edit or host again whenever you're ready.</p></div>
-        <button class="primary-btn" data-page="create">Create a quiz <span aria-hidden="true">→</span></button>
+        <a class="primary-btn" href="/create" data-page="create" data-app-link>Create a quiz <span aria-hidden="true">→</span></a>
       </div>
       <div class="library-empty">Create your first quiz and choose <strong>Save quiz</strong> to keep it here.</div>`;
     return;
@@ -396,7 +498,7 @@ async function renderLibrary() {
       <div><p class="eyebrow"><span class="eyebrow-mark">✦</span> Your quiz studio</p><h1>Your quizzes.</h1><p>${localLibrary
         ? "Saved on this device in this browser. Use the same browser and website to find them again."
         : "Pick up where you left off. Edit, customize, or host any quiz in your library."}</p></div>
-      <button class="primary-btn" data-page="create">Create a quiz <span aria-hidden="true">→</span></button>
+      <a class="primary-btn" href="/create" data-page="create" data-app-link>Create a quiz <span aria-hidden="true">→</span></a>
     </div>
     <div id="quiz-library" class="library-grid"><div class="library-empty">Loading your saved quizzes…</div></div>`;
   try {
@@ -1030,7 +1132,7 @@ async function refreshRoom() {
     if (currentMode === mode) {
       stopPolling();
       sessionStorage.removeItem(mode.type === "host" ? "paradox-host" : "paradox-player");
-      renderJoin();
+      navigateTo("/join");
       notify(error.message);
     }
   } finally {
@@ -1046,24 +1148,32 @@ function startPolling(type, room) {
 }
 
 function restoreSession() {
+  const route = routeFor();
   const host = JSON.parse(sessionStorage.getItem("paradox-host") || "null");
-  if (host) return startPolling("host", host);
   const player = JSON.parse(sessionStorage.getItem("paradox-player") || "null");
-  if (player) return startPolling("player", player);
-  renderJoin();
+  if (route.page === "host" && host?.pin === route.pin) return startPolling("host", host);
+  if (route.page === "play" && player?.pin === route.pin) return startPolling("player", player);
+  renderRoute();
 }
 
+window.addEventListener("popstate", renderRoute);
+
 document.addEventListener("click", async event => {
-  const pageButton = event.target.closest("[data-page]");
-  if (pageButton) {
-    if (pageButton.dataset.page === "create") {
-      questions = [newQuestion()];
-      renderBuilder();
-    } else if (pageButton.dataset.page === "library") {
-      renderLibrary();
-    } else {
-      renderJoin();
+  const appLink = event.target.closest("a[data-app-link]");
+  if (appLink &&
+      event.button === 0 &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      !event.shiftKey &&
+      !event.altKey &&
+      (!appLink.target || appLink.target === "_self")) {
+    event.preventDefault();
+    if (routeFor().page === "builder") {
+      const form = document.querySelector('form[data-form="create"]');
+      if (form) quizPayload(form);
     }
+    if (appLink.dataset.page === "create") resetBuilder();
+    navigateTo(appLink.pathname);
     return;
   }
 
@@ -1071,24 +1181,6 @@ document.addEventListener("click", async event => {
   if (!actionButton) return;
   const action = actionButton.dataset.action;
 
-  if (action === "select-mode") {
-    syncQuestionsFromForm();
-    syncBuilderSettingsFromForm();
-    showMode = actionButton.dataset.mode;
-    if (showMode === "Board") {
-      boardEnabled = true;
-      subjectWheelEnabled = false;
-    } else if (showMode === "Quiz") {
-      boardEnabled = false;
-    }
-    document.querySelectorAll(".show-mode-card").forEach(card => {
-      const selected = card.dataset.mode === showMode;
-      card.classList.toggle("selected", selected);
-      card.setAttribute("aria-pressed", String(selected));
-    });
-    renderModeSettings();
-    return;
-  }
   if (action === "focus-pin") {
     document.getElementById("game-pin")?.focus();
     return;
@@ -1123,7 +1215,9 @@ document.addEventListener("click", async event => {
       if (!quiz) throw new Error("That saved quiz could not be found.");
       if (action === "edit-saved") {
         questions = quiz.questions;
-        renderBuilder(quiz);
+        const mode = quiz.mode || "Quiz";
+        setPath(modePath(mode));
+        renderBuilder(quiz, mode);
       } else {
         await hostQuiz(quiz);
       }
@@ -1206,13 +1300,13 @@ document.addEventListener("click", async event => {
   if (action === "back-to-join" || action === "leave") {
     sessionStorage.removeItem("paradox-player");
     sessionStorage.removeItem("paradox-host");
-    renderJoin();
+    navigateTo("/join");
     return;
   }
   if (action === "new-quiz") {
     sessionStorage.removeItem("paradox-host");
-    questions = [newQuestion()];
-    renderBuilder();
+    resetBuilder();
+    navigateTo("/create");
     return;
   }
   if (action === "start") {
@@ -1315,6 +1409,7 @@ async function hostQuiz(quiz) {
   sessionStorage.removeItem("paradox-player");
   const room = { pin: created.pin, hostKey: created.hostKey };
   sessionStorage.setItem("paradox-host", JSON.stringify(room));
+  setPath(`/host/${room.pin}`);
   startPolling("host", room);
 }
 
@@ -1346,6 +1441,7 @@ document.addEventListener("submit", async event => {
       sessionStorage.removeItem("paradox-host");
       const room = { pin: joined.pin, playerId: joined.playerId, username: joined.username };
       sessionStorage.setItem("paradox-player", JSON.stringify(room));
+      setPath(`/play/${room.pin}`);
       startPolling("player", room);
     } catch (error) {
       button.disabled = false;

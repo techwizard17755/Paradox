@@ -46,7 +46,7 @@ Open the printed local HTTP address to use the browser-hosted quiz site.
 ## Play
 
 - **Join a game:** Enter the host's six-digit PIN, choose a nickname, and answer each timed question.
-- **Create:** Build a Quiz game, Digital board game, or advanced Custom show. The three format cards are below the question builder.
+- **Create:** Choose a Quiz game, Digital board game, or advanced Custom show at `/create`. Each format opens its own editor URL, and My quizzes lives at `/my-quizzes`.
 - **Question types:** Mix multiple-choice questions, unscored surveys that collect named player responses, and typed-answer questions with up to 10 accepted spelling variations.
 - **Quiz game:** Optionally assign subjects to questions and turn on the subject wheel. The host can spin randomly or choose a subject; questions are not repeated before the wheel has used them all.
 - **Digital board game:** Customize a 3–40 tile path with question, bonus, penalty, move, skip-turn, and custom-prompt spaces. Players take turns rolling on their own devices; the server moves their pieces and resolves tile actions automatically.

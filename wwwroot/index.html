@@ -8,23 +8,23 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=show-modes-20261115">
+  <link rel="stylesheet" href="/styles.css?v=routes-20261115">
 </head>
 <body>
   <div class="ambient ambient-one"></div>
   <div class="ambient ambient-two"></div>
   <header class="topbar">
-    <a class="brand" href="/" aria-label="Paradox home"><span class="brand-mark">P</span><span>paradox</span></a>
+    <a class="brand" href="/" data-app-link aria-label="Paradox home"><span class="brand-mark">P</span><span>paradox</span></a>
     <nav class="main-nav" aria-label="Main navigation">
-      <button class="nav-link active" data-page="join">Join a game</button>
-      <button class="nav-link" data-page="create">Create</button>
-      <button class="nav-link" data-page="library">My quizzes</button>
+      <a class="nav-link active" href="/join" data-page="join" data-app-link aria-current="page">Join a game</a>
+      <a class="nav-link" href="/create" data-page="create" data-app-link>Create</a>
+      <a class="nav-link" href="/my-quizzes" data-page="library" data-app-link>My quizzes</a>
     </nav>
     <div class="topbar-note"><span class="online-dot"></span> Make learning a little more fun</div>
   </header>
   <main id="app" class="page-shell" aria-live="polite"></main>
   <footer class="footer"><span>Paradox</span><span>Curiosity looks good on you.</span></footer>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=show-modes-20261115"></script>
+  <script src="/app.js?v=routes-20261115"></script>
 </body>
 </html>
