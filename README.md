@@ -47,11 +47,17 @@ Open the printed local HTTP address to use the browser-hosted quiz site.
 
 - **Join a game:** Enter the host's six-digit PIN, choose a nickname, and answer each timed question.
 - **Create:** Add an introduction, choose among five color themes, add up to 30 questions, mark correct answers, and select each timer.
-- **Question types:** Mix multiple-choice questions, unscored surveys that collect named player responses, and typed-answer questions with up to 10 accepted spelling variations.
+- **Show rules:** Set a per-show player limit (up to 40) and automatically balance players across up to eight teams. The 40-player limit is a product cap, not a capacity guarantee; actual server capacity depends on load.
+- **Starting formats:** Begin with a blank show or a quick quiz, audience poll, prediction, would-you-rather, story circle, or answer-challenge template. Templates are editable starting points.
+- **Family profiles:** Define up to four custom content labels, assign them to players from the host lobby, and add alternate wording to questions. Profiles are show-only; Paradox does not ask for birthdays or save player profiles.
+- **Starter show programming:** Add up to 10 safe event/action blocks: when an answer is correct or incorrect, add or remove points or a named virtual currency. Currency and scores cannot go below zero. This is the first extensible rules slice; it does not execute user-written code.
+- **Live-show controls:** Pause or resume the timer, reveal the answer early, skip a question, and remove a player from the lobby. Hosts can switch the game view to full-screen stage mode and toggle built-in sound cues.
+- **Player power-up:** Each player can arm one double-points boost per show before answering a scored question. Correct answers receive twice their normal points.
+- **Question types:** Mix scored multiple-choice and prediction rounds, unscored surveys and would-you-rather audience votes, story prompts with host-only responses, and typed-answer questions with up to 10 accepted spelling variations.
 - **My quizzes:** On the public website, save, edit, delete, and host quizzes from the same browser and device without an account.
-- **Scoring:** Correct answers earn 500 points plus up to 500 speed-bonus points. Scores and round totals appear with the answer reveal.
+- **Scoring:** Set each show's base points and maximum speed bonus (0–5,000 each), then use show-rule blocks for additional point changes. Scores and round totals appear with the answer reveal.
 - **Winner:** At the end, Paradox announces the top scorer or shared winners in a tie, then shows the final leaderboard.
-- **Host:** Share the invite link and PIN, start the quiz, reveal answers when the timer ends, and advance through the scoreboard.
+- **Host:** Share the invite link and PIN, start the quiz, manage the timer and players, reveal answers, and advance through the scoreboard.
 
 Games are stored in memory and disappear when the server restarts. On the public website, quiz libraries are saved in the creator's browser; the server-side SQLite library is temporary in the free cloud configuration. Public hosting is configured for one server instance; scaling to multiple instances requires shared live-game storage and coordination.
 

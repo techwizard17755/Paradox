@@ -86,6 +86,22 @@ Content-Type: application/json
 POST {{baseUrl}}/api/games/123456/start
 X-Host-Key: replace-with-host-key
 
+### Pause the current question timer
+POST {{baseUrl}}/api/games/123456/pause
+X-Host-Key: replace-with-host-key
+
+### Resume a paused question timer
+POST {{baseUrl}}/api/games/123456/resume
+X-Host-Key: replace-with-host-key
+
+### Reveal the current answer early
+POST {{baseUrl}}/api/games/123456/reveal
+X-Host-Key: replace-with-host-key
+
+### Skip the current question
+POST {{baseUrl}}/api/games/123456/skip
+X-Host-Key: replace-with-host-key
+
 ### Submit an answer (include the X-Player-Id returned by join)
 POST {{baseUrl}}/api/games/123456/answers
 X-Player-Id: replace-with-player-id
@@ -94,6 +110,14 @@ Content-Type: application/json
 {
   "optionIndex": 1
 }
+
+### Arm one-use double points before submitting a scored answer
+POST {{baseUrl}}/api/games/123456/powerups/double-points
+X-Player-Id: replace-with-player-id
+
+### Remove a player (replace {playerId} with the ID returned by join)
+POST {{baseUrl}}/api/games/123456/players/{playerId}/kick
+X-Host-Key: replace-with-host-key
 
 ### Continue after the answer reveal (include the host key)
 POST {{baseUrl}}/api/games/123456/next
