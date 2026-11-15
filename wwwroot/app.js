@@ -11,6 +11,10 @@ let lastSnapshotSignature = null;
 let previousRoomSnapshot = null;
 let savedQuizId = null;
 let currentTheme = "violet";
+let showMode = "Quiz";
+let boardEnabled = false;
+let subjectWheelEnabled = false;
+let boardTiles = defaultBoardTiles();
 let toastTimer = null;
 const quizThemes = [
   { id: "violet", name: "Dream", color: "#a98bff" },
@@ -24,11 +28,29 @@ function newQuestion() {
   return {
     prompt: "",
     type: "MultipleChoice",
+    subject: "General",
     options: ["", ""],
     correctOptionIndex: 0,
     acceptedAnswers: [""],
     timeLimitSeconds: 20
   };
+}
+
+function defaultBoardTiles() {
+  return [
+    { action: "Start", amount: 0, subject: "", prompt: "" },
+    { action: "Question", amount: 100, subject: "", prompt: "" },
+    { action: "Bonus", amount: 100, subject: "", prompt: "" },
+    { action: "Question", amount: 100, subject: "", prompt: "" },
+    { action: "Penalty", amount: 100, subject: "", prompt: "" },
+    { action: "Question", amount: 100, subject: "", prompt: "" },
+    { action: "MoveForward", amount: 1, subject: "", prompt: "" },
+    { action: "Question", amount: 100, subject: "", prompt: "" },
+    { action: "SkipTurn", amount: 100, subject: "", prompt: "" },
+    { action: "Question", amount: 100, subject: "", prompt: "" },
+    { action: "Bonus", amount: 200, subject: "", prompt: "" },
+    { action: "Question", amount: 100, subject: "", prompt: "" }
+  ];
 }
 
 function escapeHtml(value) {
@@ -199,6 +221,7 @@ function syncQuestionsFromForm() {
     return {
       prompt: card.querySelector(".question-prompt").value,
       type,
+      subject: card.querySelector(".question-subject-field")?.value.trim() || "General",
       options: choiceFields.length ? choiceFields.map(input => input.value) : existing.options || [],
       correctOptionIndex: selected ? Number(selected.value) : existing.correctOptionIndex || 0,
       acceptedAnswers: acceptedFields.length ? acceptedFields.map(input => input.value) : existing.acceptedAnswers || [""],
@@ -207,8 +230,29 @@ function syncQuestionsFromForm() {
   });
 }
 
+function syncBuilderSettingsFromForm() {
+  const wheelToggle = document.getElementById("subject-wheel-toggle");
+  if (wheelToggle) subjectWheelEnabled = wheelToggle.checked;
+  const boardToggle = document.getElementById("custom-board-toggle");
+  if (boardToggle) boardEnabled = boardToggle.checked;
+
+  const tiles = [...document.querySelectorAll(".board-tile-editor")];
+  if (tiles.length) {
+    boardTiles = tiles.map(tile => ({
+      action: tile.querySelector(".board-tile-action")?.value || "Start",
+      amount: Number(tile.querySelector(".board-tile-amount")?.value || 0),
+      subject: tile.querySelector(".board-tile-subject")?.value.trim() || "",
+      prompt: tile.querySelector(".board-tile-prompt")?.value.trim() || ""
+    }));
+  }
+}
+
 function renderBuilder(quiz = null) {
   stopPolling();
+  showMode = quiz?.mode || "Quiz";
+  boardEnabled = quiz ? Boolean(quiz.boardEnabled || showMode === "Board") : false;
+  subjectWheelEnabled = quiz ? Boolean(quiz.subjectWheelEnabled) : false;
+  boardTiles = quiz?.boardTiles?.length ? quiz.boardTiles.map(tile => ({ ...tile })) : defaultBoardTiles();
   setTheme(quiz?.theme || "violet");
   setNav("create");
   savedQuizId = quiz?.id || null;
@@ -216,9 +260,9 @@ function renderBuilder(quiz = null) {
   const localLibrary = usesBrowserQuizLibrary();
   app.innerHTML = `
     <div class="content-heading">
-      <p class="eyebrow"><span class="eyebrow-mark">✦</span> Your quiz, your rules</p>
+      <p class="eyebrow"><span class="eyebrow-mark">✦</span> Your show, your rules</p>
       <h1>Make a little magic.</h1>
-      <p>Write questions, choose the right answers, then host a live game your friends can join with one PIN.</p>
+      <p>Build a quiz, host a board-game adventure, or combine your own show mechanics. Players join with one PIN.</p>
     </div>
     <section class="builder-layout">
       <form class="builder-main" data-form="create">
@@ -235,12 +279,32 @@ function renderBuilder(quiz = null) {
             </label>`).join("")}
         </div>
         <div id="question-list" class="question-list"></div>
+        <section class="show-mode-section" aria-labelledby="show-mode-heading">
+          <div class="show-mode-heading">
+            <span class="field-label">Choose your game show format</span>
+            <h2 id="show-mode-heading">How do you want to play?</h2>
+            <p>Pick a format. You can still change it before hosting.</p>
+          </div>
+          <div class="show-mode-options" role="group" aria-label="Game show format">
+            ${[
+              ["Board", "Digital board game", "Players take turns rolling, moving, and resolving your custom tiles.", "▦"],
+              ["Quiz", "Quiz game", "Play questions together, with an optional subject wheel.", "✦"],
+              ["Custom", "Custom", "A flexible builder for combining board and quiz mechanics.", "⚙"]
+            ].map(([mode, title, description, icon]) => `
+              <button type="button" class="show-mode-card ${showMode === mode ? "selected" : ""}" data-action="select-mode" data-mode="${mode}" aria-pressed="${showMode === mode}">
+                <span class="show-mode-icon" aria-hidden="true">${icon}</span>
+                <span class="show-mode-card-title">${title}${mode === "Custom" ? `<span class="advanced-tag">Advanced · less recommended</span>` : ""}</span>
+                <span class="show-mode-card-description">${description}</span>
+              </button>`).join("")}
+          </div>
+        </section>
+        <div id="mode-settings"></div>
         <div class="builder-actions">
           <button class="secondary-btn" type="button" data-action="add-question"><span aria-hidden="true">＋</span> Add a question</button>
           <span class="save-note">${savedQuizId ? "Editing a saved quiz" : localLibrary ? "Saves in this browser" : "Saves to your quiz library"}</span>
           <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
             <button class="secondary-btn" type="button" data-action="save-quiz">Save quiz</button>
-            <button class="primary-btn" type="submit" data-intent="host">Host quiz <span aria-hidden="true">→</span></button>
+            <button class="primary-btn" type="submit" data-intent="host">Host game show <span aria-hidden="true">→</span></button>
           </div>
         </div>
       </form>
@@ -260,15 +324,21 @@ function renderBuilder(quiz = null) {
       </aside>
     </section>`;
   drawQuestionCards();
+  renderModeSettings();
 }
 
 function quizPayload(form) {
   syncQuestionsFromForm();
+  syncBuilderSettingsFromForm();
   const data = new FormData(form);
   return {
     quizName: data.get("quizName").toString().trim(),
     description: data.get("description").toString().trim(),
     theme: data.get("theme")?.toString() || currentTheme,
+    mode: showMode,
+    boardEnabled: showMode === "Board" || showMode === "Custom" && boardEnabled,
+    subjectWheelEnabled: showMode !== "Board" && subjectWheelEnabled,
+    boardTiles: showMode === "Board" || showMode === "Custom" && boardEnabled ? boardTiles : [],
     questions
   };
 }
@@ -338,12 +408,13 @@ async function renderLibrary() {
     grid.innerHTML = savedQuizzes.length
       ? savedQuizzes.map(quiz => {
         const theme = quizThemes.find(item => item.id === quiz.theme) || quizThemes[0];
+        const modeName = quiz.mode === "Board" ? "Digital board" : quiz.mode === "Custom" ? "Custom show" : "Quiz game";
         return `<article class="library-card">
           <div class="library-card-accent" style="--card-accent:${theme.color}"></div>
           <div class="library-card-content">
             <h2>${escapeHtml(quiz.quizName)}</h2>
             <p>${escapeHtml(quiz.description || "A little quiz, ready for game night.")}</p>
-            <div class="library-card-meta"><span>${quiz.questions.length} questions</span><span>${theme.name} theme</span></div>
+            <div class="library-card-meta"><span>${modeName} · ${quiz.questions.length} questions</span><span>${theme.name} theme</span></div>
             <div class="library-card-actions">
               <button class="primary-btn" data-action="host-saved" data-id="${escapeHtml(quiz.id)}">Host</button>
               <button class="secondary-btn" data-action="edit-saved" data-id="${escapeHtml(quiz.id)}">Edit</button>
@@ -374,6 +445,9 @@ function drawQuestionCards() {
       </div>
       <label class="field-label" for="prompt-${questionIndex}">Question</label>
       <textarea id="prompt-${questionIndex}" class="question-prompt" maxlength="240" placeholder="Write something fun to figure out…" required>${escapeHtml(question.prompt)}</textarea>
+      <label class="field-label question-subject-label" for="subject-${questionIndex}">Subject <span>Used by the wheel and question tiles</span>
+        <input id="subject-${questionIndex}" class="option-field question-subject-field" maxlength="40" value="${escapeHtml(question.subject || "General")}" placeholder="General">
+      </label>
       <label class="field-label question-type-label" for="question-type-${questionIndex}">Question type
         <select id="question-type-${questionIndex}" class="question-type-select timer-select" aria-label="Question type">
           <option value="MultipleChoice" ${(question.type || "MultipleChoice") === "MultipleChoice" ? "selected" : ""}>Multiple choice</option>
@@ -415,6 +489,77 @@ function drawQuestionCards() {
     </article>`).join("");
 }
 
+function renderModeSettings() {
+  const container = document.getElementById("mode-settings");
+  if (!container) return;
+  const wheelControl = `
+    <label class="mode-toggle">
+      <input id="subject-wheel-toggle" type="checkbox" ${subjectWheelEnabled ? "checked" : ""}>
+      <span><strong>Enable the subject wheel</strong><small>The host can spin randomly or choose a subject manually before each question.</small></span>
+    </label>`;
+  const boardToggle = showMode === "Custom" ? `
+    <label class="mode-toggle">
+      <input id="custom-board-toggle" type="checkbox" ${boardEnabled ? "checked" : ""}>
+      <span><strong>Include a digital board</strong><small>Players take turns rolling and resolving your tile actions.</small></span>
+    </label>` : "";
+  const showBoard = showMode === "Board" || showMode === "Custom" && boardEnabled;
+  container.innerHTML = `
+    <section class="mode-settings-panel">
+      <div class="mode-settings-heading">
+        <span class="card-kicker">${showMode === "Board" ? "BOARD GAME" : showMode === "Custom" ? "CUSTOM SHOW" : "QUIZ GAME"}</span>
+        <h3>${showMode === "Board" ? "Customize the board" : showMode === "Custom" ? "Advanced show settings" : "Quiz options"}</h3>
+        <p>${showMode === "Board"
+          ? "Each player rolls on their own device. Paradox moves their piece and resolves the tile automatically."
+          : showMode === "Custom"
+            ? "Combine a question game, subject wheel, and optional turn-based board."
+            : "Add a subject to each question to let the host spin or manually choose what comes next."}</p>
+      </div>
+      ${showMode === "Custom" ? `<div class="mode-toggle-list">${boardToggle}${wheelControl}</div>` : showMode === "Quiz" ? wheelControl : ""}
+      ${showMode === "Quiz" && subjectWheelEnabled || showMode === "Custom" && subjectWheelEnabled
+        ? `<p class="mode-settings-note">Wheel subjects come from the Subject fields on your questions. Questions with the same subject share a wheel segment.</p>`
+        : ""}
+      ${showBoard ? renderBoardEditor() : ""}
+    </section>`;
+}
+
+function renderBoardEditor() {
+  const actionOptions = [
+    ["Question", "Question"],
+    ["Bonus", "Bonus points"],
+    ["Penalty", "Lose points"],
+    ["MoveForward", "Move forward"],
+    ["MoveBackward", "Move backward"],
+    ["SkipTurn", "Skip next turn"],
+    ["Custom", "Custom host prompt"]
+  ];
+  const tiles = boardTiles.map((tile, index) => {
+    const usesAmount = ["Bonus", "Penalty", "MoveForward", "MoveBackward"].includes(tile.action);
+    const amountLabel = tile.action === "MoveForward" || tile.action === "MoveBackward" ? "Spaces" : "Points";
+    return `<article class="board-tile-editor" data-tile="${index}">
+      <div class="board-tile-head"><span class="board-tile-number">${index === 0 ? "START" : `TILE ${index + 1}`}</span>
+        ${index > 0 && boardTiles.length > 3 ? `<button type="button" class="remove-answer" data-action="remove-board-tile" data-index="${index}" aria-label="Remove tile ${index + 1}">×</button>` : ""}
+      </div>
+      ${index === 0
+        ? `<div class="board-start-tile"><span aria-hidden="true">⌂</span><strong>Starting space</strong><small>Every player begins here.</small></div>`
+        : `<label class="field-label">Tile action
+            <select class="timer-select board-tile-action" aria-label="Tile ${index + 1} action">
+              ${actionOptions.map(([value, label]) => `<option value="${value}" ${tile.action === value ? "selected" : ""}>${label}</option>`).join("")}
+            </select>
+          </label>
+          ${tile.action === "Question" ? `<label class="field-label board-tile-extra">Question subject <span>Leave empty for any subject</span><input class="option-field board-tile-subject" maxlength="40" value="${escapeHtml(tile.subject || "")}" placeholder="Any subject"></label>` : ""}
+          ${usesAmount ? `<label class="field-label board-tile-extra">${amountLabel}<input class="option-field board-tile-amount" type="number" min="1" max="1000" value="${Number(tile.amount) || 1}" required></label>` : ""}
+          ${tile.action === "Custom" ? `<label class="field-label board-tile-extra">Host prompt<input class="option-field board-tile-prompt" maxlength="160" value="${escapeHtml(tile.prompt || "")}" placeholder="What should the player do?" required></label>` : ""}
+        `}
+    </article>`;
+  }).join("");
+  return `<div class="board-editor">
+    <div class="board-editor-intro"><strong>Your board path</strong><span>${boardTiles.length - 1} playable spaces · up to 40 tiles</span></div>
+    <div class="board-path">${tiles}</div>
+    ${boardTiles.length < 40 ? `<button type="button" class="quiet-btn add-board-tile" data-action="add-board-tile">＋ Add a tile</button>` : ""}
+    <p class="mode-settings-note">Question tiles show a question to the player whose turn it is. Move tiles resolve their destination tile automatically; tile-action loops are safely stopped.</p>
+  </div>`;
+}
+
 function renderUsername(pin) {
   stopPolling();
   setTheme();
@@ -440,8 +585,10 @@ function gameWinners(players) {
   return players.filter(player => player.score === winningScore);
 }
 
-function renderWinnerAnnouncement(players, username = null, animate = false) {
-  const winners = gameWinners(players);
+function renderWinnerAnnouncement(players, username = null, animate = false, winnerUsername = null) {
+  const winners = winnerUsername
+    ? players.filter(player => player.username.toLocaleLowerCase() === winnerUsername.toLocaleLowerCase())
+    : gameWinners(players);
   if (!players.length) return "";
   if (!winners.length) {
     return `<section class="winner-stage ${animate ? "winner-stage-enter" : ""}" aria-live="polite">
@@ -536,6 +683,70 @@ function snapshotTransition(previous, snapshot, modeType) {
   return null;
 }
 
+function boardTileLabel(tile) {
+  const labels = {
+    Start: "Start",
+    Question: tile.subject ? `Question · ${tile.subject}` : "Question",
+    Bonus: `+${tile.amount} points`,
+    Penalty: `−${tile.amount} points`,
+    MoveForward: `Forward ${tile.amount}`,
+    MoveBackward: `Back ${tile.amount}`,
+    SkipTurn: "Skip a turn",
+    Custom: "Custom action"
+  };
+  return labels[tile.action] || tile.action;
+}
+
+function renderBoardTrack(snapshot) {
+  const tiles = snapshot.boardTiles || [];
+  const positions = snapshot.boardPositions || [];
+  if (!tiles.length) return "";
+  return `<section class="live-board" aria-label="Game board">
+    <div class="live-board-heading"><strong>Game board</strong><span>${positions.length} ${positions.length === 1 ? "player" : "players"}</span></div>
+    <div class="live-board-path">${tiles.map((tile, index) => {
+      const playersHere = positions.filter(player => player.position === index);
+      const currentTile = snapshot.activePlayer &&
+        playersHere.some(player => player.username.toLocaleLowerCase() === snapshot.activePlayer.toLocaleLowerCase());
+      return `<div class="live-board-tile ${index === 0 ? "live-board-start" : ""} ${currentTile ? "live-board-current" : ""}">
+        <span class="live-board-index">${index === 0 ? "START" : index + 1 === tiles.length ? "FINISH" : index + 1}</span>
+        <strong>${escapeHtml(boardTileLabel(tile))}</strong>
+        <span class="live-board-players">${playersHere.map(player =>
+          `<i title="${escapeHtml(player.username)}">${escapeHtml(player.username.slice(0, 1).toUpperCase())}</i>`
+        ).join("")}</span>
+      </div>`;
+    }).join("")}</div>
+    ${snapshot.lastRoll ? `<p class="board-roll-note">Last roll: <strong>${snapshot.lastRoll}</strong></p>` : ""}
+  </section>`;
+}
+
+function renderWheel(snapshot, isHost) {
+  const subjects = snapshot.availableSubjects || [];
+  if (!isHost) {
+    return `<section class="wheel-waiting">
+      <div class="wheel-display" aria-hidden="true"><span>✦</span></div>
+      <p class="card-kicker">${snapshot.boardEnabled ? "QUESTION TILE" : "SUBJECT WHEEL"}</p>
+      <h2>${snapshot.boardEnabled ? "A subject is being chosen" : "The next subject is up to chance."}</h2>
+      <p>${escapeHtml(snapshot.tileMessage || "Your host can spin the wheel or pick a subject.")}</p>
+      ${subjects.length ? `<div class="wheel-subjects">${subjects.map(subject => `<span>${escapeHtml(subject)}</span>`).join("")}</div>` : ""}
+    </section>`;
+  }
+  return `<section class="wheel-host-panel">
+    <div class="wheel-display wheel-display-spin" aria-hidden="true"><span>✦</span></div>
+    <p class="card-kicker">${snapshot.boardEnabled ? "BOARD QUESTION" : "SUBJECT WHEEL"}</p>
+    <h2>Choose what comes next.</h2>
+    <p>${escapeHtml(snapshot.tileMessage || "Spin randomly, or choose one of the available subjects.")}</p>
+    <div class="wheel-subjects">${subjects.map(subject => `<span>${escapeHtml(subject)}</span>`).join("")}</div>
+    <label class="field-label" for="wheel-subject">Or choose a subject</label>
+    <select id="wheel-subject" class="timer-select wheel-select" ${subjects.length ? "" : "disabled"}>
+      ${subjects.map(subject => `<option value="${escapeHtml(subject)}">${escapeHtml(subject)}</option>`).join("")}
+    </select>
+    <div class="wheel-actions">
+      <button class="secondary-btn" data-action="spin-wheel" ${subjects.length ? "" : "disabled"}>Spin randomly</button>
+      <button class="primary-btn" data-action="choose-wheel-subject" ${subjects.length ? "" : "disabled"}>Choose subject <span aria-hidden="true">→</span></button>
+    </div>
+  </section>`;
+}
+
 function renderHost(snapshot, transition) {
   const host = JSON.parse(sessionStorage.getItem("paradox-host") || "null");
   if (!host) return renderJoin();
@@ -543,6 +754,9 @@ function renderHost(snapshot, transition) {
   setNav("");
   const lobby = snapshot.status === "Lobby";
   const finished = snapshot.status === "Finished";
+  const wheel = snapshot.status === "Wheel";
+  const boardTurn = snapshot.boardEnabled && snapshot.status === "BoardTurn";
+  const boardAction = snapshot.boardEnabled && snapshot.status === "BoardAction";
   const title = finished ? "That’s a wrap!" : snapshot.quizName;
   const players = snapshot.players || [];
   const scoreList = renderLeaderboard(
@@ -560,26 +774,48 @@ function renderHost(snapshot, transition) {
           <section class="waiting-panel">
             <div class="game-meta"><span>THE LOBBY</span><strong>${snapshot.playerCount} ${snapshot.playerCount === 1 ? "player" : "players"}</strong></div>
             <h2 style="margin-top:22px">The room is open.</h2>
-            <p>${escapeHtml(snapshot.description || "Share the PIN with your crew. When everyone’s in, start the quiz.")}</p>
+            <p>${escapeHtml(snapshot.description || "Share the PIN with your crew. When everyone’s in, start the show.")}</p>
             <div class="player-roster">${players.length ? players.map(player => `<div class="roster-item"><span class="roster-avatar">${escapeHtml(player.username.slice(0, 1).toUpperCase())}</span><span>${escapeHtml(player.username)}</span></div>`).join("") : `<div class="empty-state">Waiting for the first player to join…</div>`}</div>
           </section>
           <aside class="host-actions">
             <div class="waiting-panel room-code"><span class="code-label">Your game PIN</span><strong class="big-code">${escapeHtml(snapshot.pin)}</strong><span class="copy-note">Share this code so players can join.</span>${isPublicHost ? `<button class="secondary-btn" data-action="copy-invite" style="margin-top:13px;width:100%">Copy player website</button>` : ""}</div>
-            <button class="primary-btn" data-action="start" ${snapshot.playerCount === 0 ? "disabled" : ""}>Start the quiz <span aria-hidden="true">→</span></button>
+            <button class="primary-btn" data-action="start" ${snapshot.playerCount === 0 ? "disabled" : ""}>${snapshot.boardEnabled ? "Start the board game" : "Start the show"} <span aria-hidden="true">→</span></button>
             <button class="quiet-btn" data-action="leave">← Back to Paradox</button>
           </aside>
         </div>
       ` : finished ? `
         <div class="game-panel">
-          ${renderWinnerAnnouncement(players, null, transition?.type === "finish")}
+          ${snapshot.boardEnabled ? renderBoardTrack(snapshot) : ""}
+          ${renderWinnerAnnouncement(players, null, transition?.type === "finish", snapshot.winnerUsername)}
           <h2 class="leaderboard-heading">Final leaderboard</h2>
           ${scoreList}
           <div style="display:flex;justify-content:center;margin-top:22px"><button class="primary-btn" data-action="new-quiz">Create another quiz</button></div>
         </div>
+      ` : wheel ? `
+        <div class="game-panel">
+          ${snapshot.boardEnabled ? renderBoardTrack(snapshot) : ""}
+          ${renderWheel(snapshot, true)}
+          ${snapshot.boardEnabled ? `<p class="board-active-player">Current player: <strong>${escapeHtml(snapshot.activePlayer || "")}</strong></p>` : ""}
+          <div class="aside-divider"></div><h3 class="leaderboard-heading">Live leaderboard</h3>${scoreList}
+        </div>
+      ` : boardTurn || boardAction ? `
+        <div class="game-panel">
+          ${renderBoardTrack(snapshot)}
+          <section class="board-turn-panel ${boardAction ? "board-custom-action" : ""}">
+            <p class="card-kicker">${boardAction ? "CUSTOM TILE" : "BOARD TURN"}</p>
+            <h2>${boardAction ? "A host prompt is waiting" : `It’s ${escapeHtml(snapshot.activePlayer || "the next player")}’s turn`}</h2>
+            <p>${escapeHtml(snapshot.tileMessage || (boardAction ? "Review the custom tile action." : "The active player rolls from their own device."))}</p>
+            ${boardAction ? `<button class="primary-btn" data-action="next">${snapshot.winnerUsername ? "Finish game" : "Continue turn"} <span aria-hidden="true">→</span></button>` : `<span class="board-waiting-note">Waiting for the active player to roll…</span>`}
+          </section>
+          <h3 class="leaderboard-heading">Leaderboard</h3>${scoreList}
+        </div>
       ` : `
         <div class="game-panel">
+          ${snapshot.boardEnabled ? renderBoardTrack(snapshot) : ""}
+          ${snapshot.boardEnabled && snapshot.tileMessage ? `<p class="board-active-player">${escapeHtml(snapshot.tileMessage)}</p>` : ""}
           <div class="game-meta"><span>${snapshot.status === "Reveal" ? "ANSWER REVEAL" : "QUESTION " + snapshot.questionNumber + " OF " + snapshot.questionCount}</span><strong class="question-clock">${snapshot.status === "Question" ? secondsLeft(snapshot.endsAtUtc) + " sec" : snapshot.playerCount + " playing"}</strong></div>
           <div class="timer-track"><div class="timer-fill" style="width:${timerPercent(snapshot)}%"></div></div>
+          ${snapshot.activeSubject ? `<div class="question-subject-pill">✦ ${escapeHtml(snapshot.activeSubject)}</div>` : ""}
           <h2 class="game-question ${transition?.type === "question" ? "question-enter" : ""}">${escapeHtml(snapshot.currentQuestion?.prompt)}</h2>
           ${questionType === "TypeAnswer"
             ? `<div class="host-question-note">Players type their answer. Accepted spellings count as correct.</div>`
@@ -591,7 +827,7 @@ function renderHost(snapshot, transition) {
                 ? `<div class="reveal-banner">Correct answer: <strong>${escapeHtml(snapshot.currentQuestion?.options[snapshot.correctOptionIndex] || "")}</strong></div>`
                 : `<div class="reveal-banner">Accepted answers include: <strong>${escapeHtml(snapshot.currentQuestion?.acceptedAnswers?.join(", ") || "the answer key")}</strong></div>`}`
             : `<p class="answer-status">${players.filter(player => player.lastAnswerPoints !== null).length} of ${snapshot.playerCount} answered${questionType === "Survey" ? " · survey answers are not scored" : ""}</p>`}
-          ${snapshot.status === "Reveal" ? `<div style="display:flex;justify-content:center;margin:20px 0 27px"><button class="primary-btn" data-action="next">${snapshot.questionNumber >= snapshot.questionCount ? "See final scores" : "Next question"} <span aria-hidden="true">→</span></button></div>` : ""}
+          ${snapshot.status === "Reveal" ? `<div style="display:flex;justify-content:center;margin:20px 0 27px"><button class="primary-btn" data-action="next">${snapshot.boardEnabled ? "Continue turn" : snapshot.questionNumber >= snapshot.questionCount ? "See final scores" : "Next question"} <span aria-hidden="true">→</span></button></div>` : ""}
           <div class="aside-divider"></div><h3 class="leaderboard-heading">${snapshot.status === "Reveal" ? "Updated leaderboard" : "Live leaderboard"}</h3>${scoreList}
         </div>
       `}
@@ -605,8 +841,13 @@ function renderPlayer(snapshot, transition) {
   setNav("");
   const lobby = snapshot.status === "Lobby";
   const finished = snapshot.status === "Finished";
+  const wheel = snapshot.status === "Wheel";
+  const boardTurn = snapshot.boardEnabled && snapshot.status === "BoardTurn";
+  const boardAction = snapshot.boardEnabled && snapshot.status === "BoardAction";
   const players = snapshot.players || [];
   const playerScore = players.find(entry => entry.username.toLocaleLowerCase() === player.username.toLocaleLowerCase());
+  const isActiveBoardPlayer = !snapshot.boardEnabled ||
+    snapshot.activePlayer?.toLocaleLowerCase() === player.username.toLocaleLowerCase();
   const questionType = snapshot.currentQuestion?.type || "MultipleChoice";
   const hasSubmittedAnswer = snapshot.myAnswerIndex !== null || snapshot.myAnswerText !== null;
   const scoreList = renderLeaderboard(
@@ -626,14 +867,49 @@ function renderPlayer(snapshot, transition) {
         </div>
       ` : finished ? `
         <div class="game-panel">
-          ${renderWinnerAnnouncement(players, player.username, transition?.type === "finish")}
+          ${snapshot.boardEnabled ? renderBoardTrack(snapshot) : ""}
+          ${renderWinnerAnnouncement(players, player.username, transition?.type === "finish", snapshot.winnerUsername)}
           <h2 class="leaderboard-heading">Final leaderboard</h2>${scoreList}
           <div style="display:flex;justify-content:center;margin-top:24px"><button class="secondary-btn" data-action="leave">Back to Paradox</button></div>
         </div>
+      ` : wheel ? `
+        <div class="game-panel">
+          ${snapshot.boardEnabled ? renderBoardTrack(snapshot) : ""}
+          ${renderWheel(snapshot, false)}
+          ${snapshot.boardEnabled ? `<p class="board-active-player">Current player: <strong>${escapeHtml(snapshot.activePlayer || "")}</strong></p>` : ""}
+        </div>
+      ` : boardTurn ? `
+        <div class="game-panel">
+          ${renderBoardTrack(snapshot)}
+          <section class="board-turn-panel">
+            <p class="card-kicker">BOARD TURN</p>
+            ${isActiveBoardPlayer
+              ? `<h2>Your turn, ${escapeHtml(player.username)}!</h2><p>${escapeHtml(snapshot.tileMessage || "Roll the die. Paradox will move your piece automatically.")}</p><button class="primary-btn" data-action="roll-board">Roll the die <span aria-hidden="true">→</span></button>`
+              : `<h2>It’s ${escapeHtml(snapshot.activePlayer || "another player")}’s turn.</h2><p>${escapeHtml(snapshot.tileMessage || "Watch the board while they roll.")}</p><span class="board-waiting-note">Your turn is coming up.</span>`}
+          </section>
+          <h3 class="leaderboard-heading">Leaderboard</h3>${scoreList}
+        </div>
+      ` : boardAction ? `
+        <div class="game-panel">
+          ${renderBoardTrack(snapshot)}
+          <section class="board-turn-panel board-custom-action">
+            <p class="card-kicker">CUSTOM TILE</p>
+            <h2>${isActiveBoardPlayer ? "Your host has a prompt for you" : `${escapeHtml(snapshot.activePlayer || "A player")} landed on a custom tile`}</h2>
+            <p>${escapeHtml(snapshot.tileMessage || "Wait for the host to continue.")}</p>
+            <span class="board-waiting-note">${isActiveBoardPlayer ? "Follow the prompt while your host reviews the turn." : "The host will continue the game shortly."}</span>
+          </section>
+          <h3 class="leaderboard-heading">Leaderboard</h3>${scoreList}
+        </div>
       ` : `
         <div class="game-panel">
+          ${snapshot.boardEnabled ? renderBoardTrack(snapshot) : ""}
+          ${snapshot.boardEnabled && snapshot.tileMessage ? `<p class="board-active-player">${escapeHtml(snapshot.tileMessage)}</p>` : ""}
+          ${snapshot.boardEnabled && snapshot.status === "Question" && !isActiveBoardPlayer
+            ? `<section class="board-turn-panel"><p class="card-kicker">BOARD QUESTION</p><h2>${escapeHtml(snapshot.activePlayer || "The active player")} is answering</h2><p>Only the player whose turn it is can answer this question.</p></section>`
+            : `
           <div class="game-meta"><span>${snapshot.status === "Reveal" ? "ANSWER REVEAL" : "QUESTION " + snapshot.questionNumber + " OF " + snapshot.questionCount}</span><strong class="question-clock">${snapshot.status === "Question" ? secondsLeft(snapshot.endsAtUtc) + " sec" : "SCORES"}</strong></div>
           <div class="timer-track"><div class="timer-fill" style="width:${timerPercent(snapshot)}%"></div></div>
+          ${snapshot.activeSubject ? `<div class="question-subject-pill">✦ ${escapeHtml(snapshot.activeSubject)}</div>` : ""}
           <h2 class="game-question ${transition?.type === "question" ? "question-enter" : ""}">${escapeHtml(snapshot.currentQuestion?.prompt)}</h2>
           ${questionType === "TypeAnswer"
             ? snapshot.status === "Reveal"
@@ -668,6 +944,7 @@ function renderPlayer(snapshot, transition) {
               : `<p class="answer-status">Choose your answer before the timer runs out.</p>`}
           ${snapshot.status === "Reveal" && questionType !== "Survey" ? renderRoundSummary(players, transition?.type === "reveal") : ""}
           ${snapshot.status === "Reveal" ? `<h3 class="leaderboard-heading">Leaderboard</h3>${scoreList}` : ""}
+          `}
         </div>
       `}
     </section>`;
@@ -708,7 +985,14 @@ function snapshotSignature(snapshot) {
     snapshot.correctOptionIndex,
     snapshot.myAnswerIndex,
     snapshot.myAnswerText,
-    snapshot.surveyResponses
+    snapshot.surveyResponses,
+    snapshot.availableSubjects,
+    snapshot.activeSubject,
+    snapshot.activePlayer,
+    snapshot.lastRoll,
+    snapshot.boardPositions,
+    snapshot.tileMessage,
+    snapshot.winnerUsername
   ]);
 }
 
@@ -787,6 +1071,24 @@ document.addEventListener("click", async event => {
   if (!actionButton) return;
   const action = actionButton.dataset.action;
 
+  if (action === "select-mode") {
+    syncQuestionsFromForm();
+    syncBuilderSettingsFromForm();
+    showMode = actionButton.dataset.mode;
+    if (showMode === "Board") {
+      boardEnabled = true;
+      subjectWheelEnabled = false;
+    } else if (showMode === "Quiz") {
+      boardEnabled = false;
+    }
+    document.querySelectorAll(".show-mode-card").forEach(card => {
+      const selected = card.dataset.mode === showMode;
+      card.classList.toggle("selected", selected);
+      card.setAttribute("aria-pressed", String(selected));
+    });
+    renderModeSettings();
+    return;
+  }
   if (action === "focus-pin") {
     document.getElementById("game-pin")?.focus();
     return;
@@ -857,6 +1159,22 @@ document.addEventListener("click", async event => {
     document.querySelector(`[data-question="${questions.length - 1}"] .question-prompt`)?.focus();
     return;
   }
+  if (action === "add-board-tile") {
+    syncQuestionsFromForm();
+    syncBuilderSettingsFromForm();
+    if (boardTiles.length >= 40) return notify("A board can have up to 40 tiles.");
+    boardTiles.push({ action: "Question", amount: 100, subject: "", prompt: "" });
+    renderModeSettings();
+    return;
+  }
+  if (action === "remove-board-tile") {
+    syncQuestionsFromForm();
+    syncBuilderSettingsFromForm();
+    if (boardTiles.length <= 3) return notify("A board needs at least 3 tiles.");
+    boardTiles.splice(Number(actionButton.dataset.index), 1);
+    renderModeSettings();
+    return;
+  }
   if (action === "remove-question") {
     syncQuestionsFromForm();
     questions.splice(Number(actionButton.dataset.index), 1);
@@ -913,6 +1231,33 @@ document.addEventListener("click", async event => {
     } catch (error) { notify(error.message); }
     return;
   }
+  if (action === "spin-wheel" || action === "choose-wheel-subject") {
+    const room = JSON.parse(sessionStorage.getItem("paradox-host") || "null");
+    const subject = action === "choose-wheel-subject"
+      ? document.getElementById("wheel-subject")?.value || null
+      : null;
+    actionButton.disabled = true;
+    try {
+      await post(`/api/games/${room.pin}/wheel/spin`, { subject }, { "X-Host-Key": room.hostKey });
+      await refreshRoom();
+    } catch (error) {
+      actionButton.disabled = false;
+      notify(error.message);
+    }
+    return;
+  }
+  if (action === "roll-board") {
+    const room = JSON.parse(sessionStorage.getItem("paradox-player") || "null");
+    actionButton.disabled = true;
+    try {
+      await post(`/api/games/${room.pin}/board/roll`, undefined, { "X-Player-Id": room.playerId });
+      await refreshRoom();
+    } catch (error) {
+      actionButton.disabled = false;
+      notify(error.message);
+    }
+    return;
+  }
   if (action === "answer") {
     const room = JSON.parse(sessionStorage.getItem("paradox-player") || "null");
     actionButton.disabled = true;
@@ -936,6 +1281,24 @@ document.addEventListener("change", event => {
     syncQuestionsFromForm();
     drawQuestionCards();
   }
+  if (event.target.id === "subject-wheel-toggle") {
+    subjectWheelEnabled = event.target.checked;
+    syncBuilderSettingsFromForm();
+    renderModeSettings();
+  }
+  if (event.target.id === "custom-board-toggle") {
+    boardEnabled = event.target.checked;
+    syncBuilderSettingsFromForm();
+    renderModeSettings();
+  }
+  if (event.target.matches(".board-tile-action")) {
+    syncQuestionsFromForm();
+    syncBuilderSettingsFromForm();
+    const tile = boardTiles[Number(event.target.closest(".board-tile-editor").dataset.tile)];
+    if (["Bonus", "Penalty"].includes(tile.action) && !tile.amount) tile.amount = 100;
+    if (["MoveForward", "MoveBackward"].includes(tile.action) && !tile.amount) tile.amount = 1;
+    renderModeSettings();
+  }
 });
 
 async function hostQuiz(quiz) {
@@ -943,6 +1306,10 @@ async function hostQuiz(quiz) {
     quizName: quiz.quizName,
     description: quiz.description,
     theme: quiz.theme,
+    mode: quiz.mode || "Quiz",
+    boardEnabled: Boolean(quiz.boardEnabled || quiz.mode === "Board"),
+    subjectWheelEnabled: Boolean(quiz.subjectWheelEnabled),
+    boardTiles: quiz.boardTiles || [],
     questions: quiz.questions
   });
   sessionStorage.removeItem("paradox-player");

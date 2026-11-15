@@ -46,8 +46,11 @@ Open the printed local HTTP address to use the browser-hosted quiz site.
 ## Play
 
 - **Join a game:** Enter the host's six-digit PIN, choose a nickname, and answer each timed question.
-- **Create:** Add an introduction, choose among five color themes, add up to 30 questions, mark correct answers, and select each timer.
+- **Create:** Build a Quiz game, Digital board game, or advanced Custom show. The three format cards are below the question builder.
 - **Question types:** Mix multiple-choice questions, unscored surveys that collect named player responses, and typed-answer questions with up to 10 accepted spelling variations.
+- **Quiz game:** Optionally assign subjects to questions and turn on the subject wheel. The host can spin randomly or choose a subject; questions are not repeated before the wheel has used them all.
+- **Digital board game:** Customize a 3–40 tile path with question, bonus, penalty, move, skip-turn, and custom-prompt spaces. Players take turns rolling on their own devices; the server moves their pieces and resolves tile actions automatically.
+- **Custom show:** Combine board turns and a subject wheel for an advanced format. Custom is marked as less recommended while its mechanics are still evolving.
 - **My quizzes:** On the public website, save, edit, delete, and host quizzes from the same browser and device without an account.
 - **Scoring:** Correct answers earn 500 points plus up to 500 speed-bonus points. Scores and round totals appear with the answer reveal.
 - **Winner:** At the end, Paradox announces the top scorer or shared winners in a tie, then shows the final leaderboard.

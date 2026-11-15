@@ -17,6 +17,18 @@ public sealed record SaveQuizRequest
     [Required, StringLength(20)]
     public string Theme { get; init; } = "violet";
 
+    /// <summary>Overall show format.</summary>
+    public ShowMode Mode { get; init; } = ShowMode.Quiz;
+
+    /// <summary>Whether a Custom show includes a turn-based board.</summary>
+    public bool BoardEnabled { get; init; }
+
+    /// <summary>Whether the host chooses a question subject using the wheel.</summary>
+    public bool SubjectWheelEnabled { get; init; }
+
+    /// <summary>Ordered board spaces, beginning with a Start tile.</summary>
+    public List<BoardTileRequest> BoardTiles { get; init; } = [];
+
     /// <summary>Questions to play in order.</summary>
     [Required, MinLength(1), MaxLength(30)]
     public required List<QuizQuestionRequest> Questions { get; init; }
@@ -30,7 +42,20 @@ public sealed record SavedQuizResponse(
     string Theme,
     IReadOnlyList<QuizQuestionRequest> Questions,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt)
+{
+    /// <summary>Overall show format.</summary>
+    public ShowMode Mode { get; init; } = ShowMode.Quiz;
+
+    /// <summary>Whether the saved show includes a turn-based board.</summary>
+    public bool BoardEnabled { get; init; }
+
+    /// <summary>Whether the saved show uses a host-controlled subject wheel.</summary>
+    public bool SubjectWheelEnabled { get; init; }
+
+    /// <summary>Ordered board spaces, beginning with a Start tile.</summary>
+    public IReadOnlyList<BoardTileRequest> BoardTiles { get; init; } = [];
+}
 
 /// <summary>A newly saved quiz and its private management key.</summary>
 public sealed record SavedQuizCreatedResponse(SavedQuizResponse Quiz, string OwnerKey);

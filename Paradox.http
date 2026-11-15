@@ -9,9 +9,12 @@ Content-Type: application/json
   "quizName": "Quick Science",
   "description": "A quick round of science trivia!",
   "theme": "ocean",
+  "mode": "Quiz",
+  "subjectWheelEnabled": true,
   "questions": [
     {
       "prompt": "Which planet is known as the Red Planet?",
+      "subject": "Space",
       "options": ["Venus", "Mars", "Jupiter", "Mercury"],
       "correctOptionIndex": 1,
       "timeLimitSeconds": 20
@@ -98,3 +101,41 @@ Content-Type: application/json
 ### Continue after the answer reveal (include the host key)
 POST {{baseUrl}}/api/games/123456/next
 X-Host-Key: replace-with-host-key
+
+### Spin the subject wheel at random (or set "subject" to pick manually)
+POST {{baseUrl}}/api/games/123456/wheel/spin
+X-Host-Key: replace-with-host-key
+Content-Type: application/json
+
+{
+  "subject": null
+}
+
+### Create a digital board game
+POST {{baseUrl}}/api/games
+Content-Type: application/json
+
+{
+  "quizName": "Science Adventure",
+  "theme": "ocean",
+  "mode": "Board",
+  "questions": [
+    {
+      "prompt": "Which planet is known as the Red Planet?",
+      "subject": "Space",
+      "options": ["Venus", "Mars"],
+      "correctOptionIndex": 1,
+      "timeLimitSeconds": 20
+    }
+  ],
+  "boardTiles": [
+    { "action": "Start", "amount": 0 },
+    { "action": "Question", "subject": "Space" },
+    { "action": "Bonus", "amount": 100 },
+    { "action": "Question", "subject": "Space" }
+  ]
+}
+
+### Roll during the active player's board turn
+POST {{baseUrl}}/api/games/123456/board/roll
+X-Player-Id: replace-with-active-player-id

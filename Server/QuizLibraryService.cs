@@ -49,7 +49,7 @@ internal sealed class QuizLibraryService : IQuizLibraryService
         await using var connection = await OpenConnectionAsync(cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT id, quiz_name, description, theme, questions_json, created_at, updated_at
+            SELECT id, quiz_name, description, theme, questions_json, settings_json, created_at, updated_at
             FROM saved_quizzes
             WHERE owner_hash = $owner_hash
             ORDER BY updated_at DESC;
@@ -66,7 +66,7 @@ internal sealed class QuizLibraryService : IQuizLibraryService
         await using var connection = await OpenConnectionAsync(cancellationToken);
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT id, quiz_name, description, theme, questions_json, created_at, updated_at
+            SELECT id, quiz_name, description, theme, questions_json, settings_json, created_at, updated_at
             FROM saved_quizzes
             WHERE id = $id AND owner_hash = $owner_hash;
             """;
@@ -106,8 +106,8 @@ internal sealed class QuizLibraryService : IQuizLibraryService
         {
             command.Transaction = transaction;
             command.CommandText = """
-                INSERT INTO saved_quizzes (id, owner_hash, quiz_name, description, theme, questions_json, created_at, updated_at)
-                VALUES ($id, $owner_hash, $quiz_name, $description, $theme, $questions_json, $created_at, $updated_at);
+                INSERT INTO saved_quizzes (id, owner_hash, quiz_name, description, theme, questions_json, settings_json, created_at, updated_at)
+                VALUES ($id, $owner_hash, $quiz_name, $description, $theme, $questions_json, $settings_json, $created_at, $updated_at);
                 """;
             AddQuizParameters(command, id, ownerHash, request, now, now);
             await command.ExecuteNonQueryAsync(cancellationToken);
@@ -135,6 +135,7 @@ internal sealed class QuizLibraryService : IQuizLibraryService
                 description = $description,
                 theme = $theme,
                 questions_json = $questions_json,
+                settings_json = $settings_json,
                 updated_at = $updated_at
             WHERE id = $id AND owner_hash = $owner_hash;
             """;
@@ -173,6 +174,7 @@ internal sealed class QuizLibraryService : IQuizLibraryService
                 description TEXT NOT NULL,
                 theme TEXT NOT NULL,
                 questions_json TEXT NOT NULL,
+                settings_json TEXT NOT NULL DEFAULT '{}',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -180,6 +182,20 @@ internal sealed class QuizLibraryService : IQuizLibraryService
                 ON saved_quizzes (owner_hash, updated_at DESC);
             """;
         command.ExecuteNonQuery();
+
+        using var columnsCommand = connection.CreateCommand();
+        columnsCommand.CommandText = "PRAGMA table_info(saved_quizzes);";
+        using var columns = columnsCommand.ExecuteReader();
+        var hasSettingsColumn = false;
+        while (columns.Read())
+            hasSettingsColumn |= columns.GetString(1) == "settings_json";
+        columns.Close();
+        if (!hasSettingsColumn)
+        {
+            using var migrationCommand = connection.CreateCommand();
+            migrationCommand.CommandText = "ALTER TABLE saved_quizzes ADD COLUMN settings_json TEXT NOT NULL DEFAULT '{}';";
+            migrationCommand.ExecuteNonQuery();
+        }
     }
 
     private async Task<SqliteConnection> OpenConnectionAsync(CancellationToken cancellationToken)
@@ -213,6 +229,8 @@ internal sealed class QuizLibraryService : IQuizLibraryService
                 return "Every question needs a prompt.";
             if (!Enum.IsDefined(question.Type) || question.TimeLimitSeconds is < 5 or > 60)
                 return "Check the question type and timer on each question.";
+            if ((question.Subject?.Trim().Length ?? 0) > 40)
+                return "Question subjects must be 40 characters or fewer.";
             if (question.Type is QuestionType.MultipleChoice or QuestionType.Survey)
             {
                 if (question.Options is null ||
@@ -229,15 +247,25 @@ internal sealed class QuizLibraryService : IQuizLibraryService
                 return "Type-answer questions need between 1 and 10 accepted answers, each 100 characters or fewer.";
             }
         }
+        var modeError = ShowConfigurationValidator.Validate(
+            request.Mode,
+            request.BoardEnabled,
+            request.SubjectWheelEnabled,
+            request.BoardTiles,
+            request.Questions);
+        if (modeError is not null)
+            return modeError;
         return null;
     }
 
     private static SavedQuizResponse ReadQuiz(SqliteDataReader reader)
     {
-        var createdAt = DateTimeOffset.Parse(reader.GetString(5), System.Globalization.CultureInfo.InvariantCulture);
-        var updatedAt = DateTimeOffset.Parse(reader.GetString(6), System.Globalization.CultureInfo.InvariantCulture);
+        var createdAt = DateTimeOffset.Parse(reader.GetString(6), System.Globalization.CultureInfo.InvariantCulture);
+        var updatedAt = DateTimeOffset.Parse(reader.GetString(7), System.Globalization.CultureInfo.InvariantCulture);
         var questions = JsonSerializer.Deserialize<List<QuizQuestionRequest>>(reader.GetString(4), JsonOptions)
             ?? throw new InvalidDataException("A saved quiz contains invalid question data.");
+        var settings = JsonSerializer.Deserialize<SavedShowSettings>(reader.GetString(5), JsonOptions)
+            ?? new SavedShowSettings();
         return new SavedQuizResponse(
             reader.GetString(0),
             reader.GetString(1),
@@ -245,11 +273,23 @@ internal sealed class QuizLibraryService : IQuizLibraryService
             reader.GetString(3),
             questions,
             createdAt,
-            updatedAt);
+            updatedAt)
+        {
+            Mode = settings.Mode,
+            BoardEnabled = settings.BoardEnabled,
+            SubjectWheelEnabled = settings.SubjectWheelEnabled,
+            BoardTiles = settings.BoardTiles ?? []
+        };
     }
 
     private static SavedQuizResponse ToResponse(string id, SaveQuizRequest request, DateTimeOffset createdAt, DateTimeOffset updatedAt) =>
-        new(id, request.QuizName.Trim(), request.Description?.Trim() ?? "", request.Theme, request.Questions, createdAt, updatedAt);
+        new(id, request.QuizName.Trim(), request.Description?.Trim() ?? "", request.Theme, request.Questions, createdAt, updatedAt)
+        {
+            Mode = request.Mode,
+            BoardEnabled = ShowConfigurationValidator.HasBoard(request.Mode, request.BoardEnabled),
+            SubjectWheelEnabled = ShowConfigurationValidator.HasSubjectWheel(request.Mode, request.SubjectWheelEnabled),
+            BoardTiles = ShowConfigurationValidator.HasBoard(request.Mode, request.BoardEnabled) ? request.BoardTiles ?? [] : []
+        };
 
     private static void AddQuizParameters(
         SqliteCommand command,
@@ -265,9 +305,22 @@ internal sealed class QuizLibraryService : IQuizLibraryService
         command.Parameters.AddWithValue("$description", request.Description?.Trim() ?? "");
         command.Parameters.AddWithValue("$theme", request.Theme);
         command.Parameters.AddWithValue("$questions_json", JsonSerializer.Serialize(request.Questions, JsonOptions));
+        command.Parameters.AddWithValue("$settings_json", JsonSerializer.Serialize(
+            new SavedShowSettings(
+                request.Mode,
+                ShowConfigurationValidator.HasBoard(request.Mode, request.BoardEnabled),
+                ShowConfigurationValidator.HasSubjectWheel(request.Mode, request.SubjectWheelEnabled),
+                ShowConfigurationValidator.HasBoard(request.Mode, request.BoardEnabled) ? request.BoardTiles ?? [] : []),
+            JsonOptions));
         command.Parameters.AddWithValue("$created_at", createdAt?.ToString("O") ?? (object)DBNull.Value);
         command.Parameters.AddWithValue("$updated_at", updatedAt.ToString("O"));
     }
+
+    private sealed record SavedShowSettings(
+        ShowMode Mode = ShowMode.Quiz,
+        bool BoardEnabled = false,
+        bool SubjectWheelEnabled = false,
+        List<BoardTileRequest>? BoardTiles = null);
 
     private static string HashOwnerKey(string ownerKey) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(ownerKey)));

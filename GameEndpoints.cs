@@ -15,8 +15,8 @@ internal static class GameEndpoints
                 : TypedResults.Created($"/api/games/{response.Pin}", response);
         })
         .WithName("CreateGame")
-        .WithSummary("Create a quiz game")
-        .WithDescription("Creates a quiz and returns its unique join PIN and private host key.")
+        .WithSummary("Create a hosted game show")
+        .WithDescription("Creates a quiz, subject-wheel show, digital board game, or Custom show and returns its join PIN and private host key.")
         .Produces<GameCreatedResponse>(StatusCodes.Status201Created)
         .ProducesProblem(StatusCodes.Status400BadRequest);
 
@@ -38,7 +38,7 @@ internal static class GameEndpoints
         })
         .WithName("GetGame")
         .WithSummary("Get the current game state")
-        .WithDescription("Returns the lobby, question, reveal, or final scoreboard for a game.")
+        .WithDescription("Returns the lobby, subject wheel, board turn, question, reveal, or final scoreboard for a game.")
         .Produces<GameSnapshotResponse>()
         .ProducesProblem(StatusCodes.Status401Unauthorized)
         .ProducesProblem(StatusCodes.Status404NotFound);
@@ -79,8 +79,8 @@ internal static class GameEndpoints
             return ToHttpResult(games.Start(pin, request.Headers["X-Host-Key"].FirstOrDefault() ?? string.Empty));
         })
         .WithName("StartGame")
-        .WithSummary("Start a hosted quiz")
-        .WithDescription("Starts the first question after at least one player has joined.")
+        .WithSummary("Start a hosted game show")
+        .WithDescription("Starts the first question or board turn after at least one player has joined.")
         .Produces<GameSnapshotResponse>()
         .ProducesProblem(StatusCodes.Status401Unauthorized)
         .ProducesProblem(StatusCodes.Status404NotFound)
@@ -102,6 +102,46 @@ internal static class GameEndpoints
         .WithDescription("Accepts one answer per player while the current question is open.")
         .Produces<GameSnapshotResponse>()
         .ProducesProblem(StatusCodes.Status400BadRequest)
+        .ProducesProblem(StatusCodes.Status401Unauthorized)
+        .ProducesProblem(StatusCodes.Status404NotFound)
+        .ProducesProblem(StatusCodes.Status409Conflict);
+
+        app.MapPost("/api/games/{pin}/wheel/spin", IResult (
+            string pin,
+            SpinWheelRequest body,
+            HttpRequest request,
+            IGameService games,
+            CancellationToken cancellationToken) =>
+        {
+            _ = cancellationToken;
+            return ToHttpResult(games.SpinWheel(
+                pin,
+                request.Headers["X-Host-Key"].FirstOrDefault() ?? string.Empty,
+                body.Subject));
+        })
+        .WithName("SpinSubjectWheel")
+        .WithSummary("Choose the next question subject")
+        .WithDescription("The host may select a subject manually or leave it empty to spin randomly.")
+        .Produces<GameSnapshotResponse>()
+        .ProducesProblem(StatusCodes.Status401Unauthorized)
+        .ProducesProblem(StatusCodes.Status404NotFound)
+        .ProducesProblem(StatusCodes.Status409Conflict);
+
+        app.MapPost("/api/games/{pin}/board/roll", IResult (
+            string pin,
+            HttpRequest request,
+            IGameService games,
+            CancellationToken cancellationToken) =>
+        {
+            _ = cancellationToken;
+            return ToHttpResult(games.RollBoard(
+                pin,
+                request.Headers["X-Player-Id"].FirstOrDefault() ?? string.Empty));
+        })
+        .WithName("RollBoard")
+        .WithSummary("Roll for a board-game turn")
+        .WithDescription("The active player rolls a six-sided die; the server moves their piece and resolves the landed tile.")
+        .Produces<GameSnapshotResponse>()
         .ProducesProblem(StatusCodes.Status401Unauthorized)
         .ProducesProblem(StatusCodes.Status404NotFound)
         .ProducesProblem(StatusCodes.Status409Conflict);
