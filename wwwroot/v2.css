@@ -796,8 +796,12 @@ body.v2-mode[data-page] .footer span:first-child {
 
   body.v2-mode[data-page] .hero-v2::before {
     top: 16%;
-    right: -15%;
+    right: 0;
     width: 90vw;
+  }
+
+  body.v2-mode[data-page] .decor-board {
+    display: none;
   }
 
   body.v2-mode[data-page] .hero-copy-block {
