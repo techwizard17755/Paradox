@@ -196,7 +196,7 @@ body.v2-mode[data-page] .solar-system {
   position: absolute;
   z-index: 0;
   top: 50%;
-  right: 14%;
+  right: 9.5%;
   width: min(64vw, 720px);
   aspect-ratio: 1;
   pointer-events: none;
@@ -270,7 +270,7 @@ body.v2-mode[data-page] .solar-orbit-one {
   --orbit-offset: 18deg;
   width: 30%;
   height: 23%;
-  animation-duration: 8s;
+  animation-duration: 7s;
 }
 
 body.v2-mode[data-page] .solar-orbit-two {
@@ -278,7 +278,7 @@ body.v2-mode[data-page] .solar-orbit-two {
   width: 47%;
   height: 35%;
   border-color: rgba(255, 157, 199, .3);
-  animation-duration: 14s;
+  animation-duration: 12.5s;
   animation-direction: reverse;
 }
 
@@ -287,7 +287,7 @@ body.v2-mode[data-page] .solar-orbit-three {
   width: 66%;
   height: 49%;
   border-color: rgba(173, 151, 255, .34);
-  animation-duration: 21s;
+  animation-duration: 19s;
 }
 
 body.v2-mode[data-page] .solar-orbit-four {
@@ -295,7 +295,7 @@ body.v2-mode[data-page] .solar-orbit-four {
   width: 86%;
   height: 63%;
   border-color: rgba(115, 224, 255, .28);
-  animation-duration: 31s;
+  animation-duration: 28s;
   animation-direction: reverse;
 }
 
@@ -1575,7 +1575,7 @@ body.v2-mode[data-page] .footer {
   }
 
   body.v2-mode[data-page] .solar-system {
-    top: 49%;
+    top: 55.5%;
     right: 0;
     width: min(100%, 640px);
     opacity: .7;
@@ -1675,7 +1675,7 @@ body.v2-mode[data-page] .footer {
   }
 
   body.v2-mode[data-page] .solar-system {
-    top: 62%;
+    top: 60%;
     right: 0;
     width: min(100%, 430px);
     opacity: .48;
