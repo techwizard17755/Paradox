@@ -196,7 +196,7 @@ body.v2-mode[data-page] .solar-system {
   position: absolute;
   z-index: 0;
   top: 50%;
-  right: -1%;
+  right: 14%;
   width: min(64vw, 720px);
   aspect-ratio: 1;
   pointer-events: none;
