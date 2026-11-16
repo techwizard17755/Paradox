@@ -29,6 +29,16 @@ public sealed record SaveQuizRequest
     /// <summary>Ordered board spaces, beginning with a Start tile.</summary>
     public List<BoardTileRequest> BoardTiles { get; init; } = [];
 
+    /// <summary>Title displayed above the board.</summary>
+    [StringLength(48)]
+    public string BoardTitle { get; init; } = "The Showdown";
+
+    /// <summary>Visual arrangement used to display the board spaces.</summary>
+    public BoardLayout BoardLayout { get; init; } = BoardLayout.Track;
+
+    /// <summary>Color treatment used to display the board.</summary>
+    public BoardStyle BoardStyle { get; init; } = BoardStyle.Aurora;
+
     /// <summary>Questions to play in order.</summary>
     [Required, MinLength(1), MaxLength(30)]
     public required List<QuizQuestionRequest> Questions { get; init; }
@@ -55,6 +65,15 @@ public sealed record SavedQuizResponse(
 
     /// <summary>Ordered board spaces, beginning with a Start tile.</summary>
     public IReadOnlyList<BoardTileRequest> BoardTiles { get; init; } = [];
+
+    /// <summary>Title displayed above the board.</summary>
+    public string BoardTitle { get; init; } = "The Showdown";
+
+    /// <summary>Visual arrangement used to display the board spaces.</summary>
+    public BoardLayout BoardLayout { get; init; } = BoardLayout.Track;
+
+    /// <summary>Color treatment used to display the board.</summary>
+    public BoardStyle BoardStyle { get; init; } = BoardStyle.Aurora;
 }
 
 /// <summary>A newly saved quiz and its private management key.</summary>

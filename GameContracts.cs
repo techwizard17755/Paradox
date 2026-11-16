@@ -57,6 +57,16 @@ public sealed record CreateGameRequest
     /// <summary>Ordered board spaces, beginning with a Start tile.</summary>
     public List<BoardTileRequest> BoardTiles { get; init; } = [];
 
+    /// <summary>Title displayed above the board.</summary>
+    [StringLength(48)]
+    public string BoardTitle { get; init; } = "The Showdown";
+
+    /// <summary>Visual arrangement used to display the board spaces.</summary>
+    public BoardLayout BoardLayout { get; init; } = BoardLayout.Track;
+
+    /// <summary>Color treatment used to display the board.</summary>
+    public BoardStyle BoardStyle { get; init; } = BoardStyle.Aurora;
+
     /// <summary>Questions to play in order.</summary>
     [Required, MinLength(1), MaxLength(30)]
     public required List<QuizQuestionRequest> Questions { get; init; }
@@ -99,6 +109,14 @@ public sealed record BoardTileRequest
     /// <summary>Message shown when a player lands on a custom tile.</summary>
     [StringLength(160)]
     public string Prompt { get; init; } = "";
+
+    /// <summary>Optional display label shown on the board.</summary>
+    [StringLength(40)]
+    public string Label { get; init; } = "";
+
+    /// <summary>Optional compressed raster image represented as a data URL.</summary>
+    [StringLength(80000)]
+    public string ImageDataUrl { get; init; } = "";
 }
 
 /// <summary>Optional subject selected by the host; omit it to spin randomly.</summary>
@@ -160,7 +178,10 @@ public sealed record GameSnapshotResponse(
     IReadOnlyList<BoardTileRequest>? BoardTiles = null,
     IReadOnlyList<PlayerBoardPositionResponse>? BoardPositions = null,
     string? TileMessage = null,
-    string? WinnerUsername = null);
+    string? WinnerUsername = null,
+    string BoardTitle = "The Showdown",
+    BoardLayout BoardLayout = BoardLayout.Track,
+    BoardStyle BoardStyle = BoardStyle.Aurora);
 
 /// <summary>Show creation mode.</summary>
 public enum ShowMode
@@ -192,6 +213,26 @@ public enum BoardTileAction
     SkipTurn,
     /// <summary>Show a custom host prompt before the next turn.</summary>
     Custom
+}
+
+/// <summary>Visual arrangement of the board spaces.</summary>
+public enum BoardLayout
+{
+    /// <summary>A winding track that follows the order of the spaces.</summary>
+    Track,
+    /// <summary>A serpentine grid that winds like a classic snakes-and-ladders board.</summary>
+    SnakesAndLadders
+}
+
+/// <summary>Visual color treatment for a digital board.</summary>
+public enum BoardStyle
+{
+    /// <summary>Violet and teal light over a dark board.</summary>
+    Aurora,
+    /// <summary>Bright candy colors with playful tile highlights.</summary>
+    Candy,
+    /// <summary>High-contrast arcade colors and glowing borders.</summary>
+    Arcade
 }
 
 /// <summary>How a quiz question is answered and scored.</summary>
@@ -237,7 +278,10 @@ internal static class ShowConfigurationValidator
         bool boardEnabled,
         bool subjectWheelEnabled,
         IReadOnlyList<BoardTileRequest>? boardTiles,
-        IReadOnlyList<QuizQuestionRequest>? questions)
+        IReadOnlyList<QuizQuestionRequest>? questions,
+        string? boardTitle,
+        BoardLayout boardLayout,
+        BoardStyle boardStyle)
     {
         if (!Enum.IsDefined(mode))
             return "Choose a supported show mode.";
@@ -246,12 +290,17 @@ internal static class ShowConfigurationValidator
 
         if (!HasBoard(mode, boardEnabled))
             return null;
+        if (string.IsNullOrWhiteSpace(boardTitle) || boardTitle.Trim().Length > 48)
+            return "Add a board title with no more than 48 characters.";
+        if (!Enum.IsDefined(boardLayout) || !Enum.IsDefined(boardStyle))
+            return "Choose a supported board layout and style.";
 
         if (boardTiles is null || boardTiles.Count is < 3 or > 40)
             return "A digital board needs between 3 and 40 tiles, including Start.";
         if (boardTiles[0] is null || boardTiles[0].Action != BoardTileAction.Start)
             return "The first board tile must be Start.";
 
+        var imageDataLength = 0;
         for (var index = 0; index < boardTiles.Count; index++)
         {
             var tile = boardTiles[index];
@@ -259,8 +308,15 @@ internal static class ShowConfigurationValidator
                 return "Choose a supported action for every board tile.";
             if ((index == 0) != (tile.Action == BoardTileAction.Start))
                 return "Start can only be used on the first board tile.";
-            if ((tile.Subject?.Trim().Length ?? 0) > 40 || (tile.Prompt?.Trim().Length ?? 0) > 160)
-                return "Board tile subjects and prompts are too long.";
+            if ((tile.Subject?.Trim().Length ?? 0) > 40 ||
+                (tile.Prompt?.Trim().Length ?? 0) > 160 ||
+                (tile.Label?.Trim().Length ?? 0) > 40)
+                return "Board tile labels, subjects, and prompts are too long.";
+            if (!IsValidImageDataUrl(tile.ImageDataUrl))
+                return "Board images must be compressed PNG, JPEG, or WebP images.";
+            imageDataLength += tile.ImageDataUrl?.Length ?? 0;
+            if (imageDataLength > 400_000)
+                return "Board images are too large. Remove some images or use smaller pictures.";
             if ((tile.Action is BoardTileAction.Bonus or BoardTileAction.Penalty or
                 BoardTileAction.MoveForward or BoardTileAction.MoveBackward) &&
                 (tile.Amount is < 1 or > 1000))
@@ -278,4 +334,36 @@ internal static class ShowConfigurationValidator
 
         return null;
     }
+
+    private static bool IsValidImageDataUrl(string? imageDataUrl)
+    {
+        if (string.IsNullOrEmpty(imageDataUrl))
+            return true;
+        if (imageDataUrl.Length > 80_000)
+            return false;
+        var separator = imageDataUrl.IndexOf(',');
+        if (separator < 0)
+            return false;
+        var mediaType = imageDataUrl[..separator];
+        if (mediaType is not ("data:image/png;base64" or "data:image/jpeg;base64" or "data:image/webp;base64"))
+            return false;
+        var encoded = imageDataUrl[(separator + 1)..];
+        if (encoded.Length == 0)
+            return false;
+        var buffer = new byte[encoded.Length];
+        return Convert.TryFromBase64String(encoded, buffer, out var bytesWritten) &&
+            bytesWritten <= 60_000 &&
+            HasImageSignature(mediaType, buffer.AsSpan(0, bytesWritten));
+    }
+
+    private static bool HasImageSignature(string mediaType, ReadOnlySpan<byte> bytes) =>
+        mediaType switch
+        {
+            "data:image/png;base64" => bytes.StartsWith(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 }),
+            "data:image/jpeg;base64" => bytes.StartsWith(new byte[] { 255, 216, 255 }),
+            "data:image/webp;base64" => bytes.Length >= 12 &&
+                bytes[..4].SequenceEqual("RIFF"u8) &&
+                bytes.Slice(8, 4).SequenceEqual("WEBP"u8),
+            _ => false
+        };
 }

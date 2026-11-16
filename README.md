@@ -49,8 +49,9 @@ Open the printed local HTTP address to use the browser-hosted quiz site.
 - **Create:** Choose a Quiz game, Digital board game, or advanced Custom show at `/create`. Each format opens its own editor URL, and My quizzes lives at `/my-quizzes`.
 - **Question types:** Mix multiple-choice questions, unscored surveys that collect named player responses, and typed-answer questions with up to 10 accepted spelling variations.
 - **Quiz game:** Optionally assign subjects to questions and turn on the subject wheel. The host can spin randomly or choose a subject; questions are not repeated before the wheel has used them all.
-- **Digital board game:** Customize a 3–40 tile path with question, bonus, penalty, move, skip-turn, and custom-prompt spaces. Players take turns rolling on their own devices; the server moves their pieces and resolves tile actions automatically.
-- **Custom show:** Combine board turns and a subject wheel for an advanced format. Custom is marked as less recommended while its mechanics are still evolving.
+- **Digital board game:** Design a 3–40 tile board that winds around its edge or snakes through a grid. Set its title and color style, customize each tile's action and display label, and add compressed tile artwork. Players take turns rolling on their own devices; the server moves their pieces and resolves tile actions automatically.
+- **Quiz game:** See a live, color-segmented subject wheel preview while creating questions. The host can spin for a subject or choose one directly.
+- **Custom show:** Compose a combined show in the advanced production studio. Turn board and wheel modules on or off, configure the board, and combine board turns with quiz rounds.
 - **My quizzes:** On the public website, save, edit, delete, and host quizzes from the same browser and device without an account.
 - **Scoring:** Correct answers earn 500 points plus up to 500 speed-bonus points. Scores and round totals appear with the answer reveal.
 - **Winner:** At the end, Paradox announces the top scorer or shared winners in a tie, then shows the final leaderboard.

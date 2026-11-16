@@ -81,7 +81,10 @@ internal sealed class GameService : IGameService
             request.BoardEnabled,
             request.SubjectWheelEnabled,
             request.BoardTiles,
-            request.Questions);
+            request.Questions,
+            request.BoardTitle,
+            request.BoardLayout,
+            request.BoardStyle);
         if (configurationError is not null)
             return (null, configurationError);
 
@@ -105,7 +108,8 @@ internal sealed class GameService : IGameService
             ? request.BoardTiles.Select(tile => tile with
             {
                 Subject = tile.Subject?.Trim() ?? "",
-                Prompt = tile.Prompt?.Trim() ?? ""
+                Prompt = tile.Prompt?.Trim() ?? "",
+                Label = tile.Label?.Trim() ?? ""
             }).ToArray()
             : [];
         var hasBoard = ShowConfigurationValidator.HasBoard(request.Mode, request.BoardEnabled);
@@ -130,7 +134,10 @@ internal sealed class GameService : IGameService
                 hasBoard,
                 hasWheel,
                 normalizedQuestions,
-                boardTiles));
+                boardTiles,
+                request.BoardTitle.Trim(),
+                request.BoardLayout,
+                request.BoardStyle));
             return (new GameCreatedResponse(pin, hostKey, title), null);
         }
     }
@@ -675,7 +682,10 @@ internal sealed class GameService : IGameService
                     .ToArray()
                 : [],
             game.TileMessage,
-            game.WinnerUsername);
+            game.WinnerUsername,
+            game.BoardTitle,
+            game.BoardLayout,
+            game.BoardStyle);
     }
 
     private static GameActionResult Success(Game game, string? playerId = null) =>
@@ -707,13 +717,19 @@ internal sealed class GameService : IGameService
         bool boardEnabled,
         bool subjectWheelEnabled,
         IReadOnlyList<QuizQuestionRequest> questions,
-        IReadOnlyList<BoardTileRequest> boardTiles)
+        IReadOnlyList<BoardTileRequest> boardTiles,
+        string boardTitle,
+        BoardLayout boardLayout,
+        BoardStyle boardStyle)
     {
         public string Pin { get; } = pin;
         public string HostKey { get; } = hostKey;
         public string QuizName { get; } = quizName;
         public string Description { get; } = description;
         public string Theme { get; } = theme;
+        public string BoardTitle { get; } = boardTitle;
+        public BoardLayout BoardLayout { get; } = boardLayout;
+        public BoardStyle BoardStyle { get; } = boardStyle;
         public ShowMode Mode { get; } = mode;
         public bool BoardEnabled { get; } = boardEnabled;
         public bool SubjectWheelEnabled { get; } = subjectWheelEnabled;

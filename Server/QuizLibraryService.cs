@@ -252,7 +252,10 @@ internal sealed class QuizLibraryService : IQuizLibraryService
             request.BoardEnabled,
             request.SubjectWheelEnabled,
             request.BoardTiles,
-            request.Questions);
+            request.Questions,
+            request.BoardTitle,
+            request.BoardLayout,
+            request.BoardStyle);
         if (modeError is not null)
             return modeError;
         return null;
@@ -278,7 +281,10 @@ internal sealed class QuizLibraryService : IQuizLibraryService
             Mode = settings.Mode,
             BoardEnabled = settings.BoardEnabled,
             SubjectWheelEnabled = settings.SubjectWheelEnabled,
-            BoardTiles = settings.BoardTiles ?? []
+            BoardTiles = settings.BoardTiles ?? [],
+            BoardTitle = settings.BoardTitle,
+            BoardLayout = settings.BoardLayout,
+            BoardStyle = settings.BoardStyle
         };
     }
 
@@ -288,7 +294,10 @@ internal sealed class QuizLibraryService : IQuizLibraryService
             Mode = request.Mode,
             BoardEnabled = ShowConfigurationValidator.HasBoard(request.Mode, request.BoardEnabled),
             SubjectWheelEnabled = ShowConfigurationValidator.HasSubjectWheel(request.Mode, request.SubjectWheelEnabled),
-            BoardTiles = ShowConfigurationValidator.HasBoard(request.Mode, request.BoardEnabled) ? request.BoardTiles ?? [] : []
+            BoardTiles = ShowConfigurationValidator.HasBoard(request.Mode, request.BoardEnabled) ? request.BoardTiles ?? [] : [],
+            BoardTitle = request.BoardTitle.Trim(),
+            BoardLayout = request.BoardLayout,
+            BoardStyle = request.BoardStyle
         };
 
     private static void AddQuizParameters(
@@ -310,7 +319,10 @@ internal sealed class QuizLibraryService : IQuizLibraryService
                 request.Mode,
                 ShowConfigurationValidator.HasBoard(request.Mode, request.BoardEnabled),
                 ShowConfigurationValidator.HasSubjectWheel(request.Mode, request.SubjectWheelEnabled),
-                ShowConfigurationValidator.HasBoard(request.Mode, request.BoardEnabled) ? request.BoardTiles ?? [] : []),
+                ShowConfigurationValidator.HasBoard(request.Mode, request.BoardEnabled) ? request.BoardTiles ?? [] : [],
+                request.BoardTitle.Trim(),
+                request.BoardLayout,
+                request.BoardStyle),
             JsonOptions));
         command.Parameters.AddWithValue("$created_at", createdAt?.ToString("O") ?? (object)DBNull.Value);
         command.Parameters.AddWithValue("$updated_at", updatedAt.ToString("O"));
@@ -320,7 +332,10 @@ internal sealed class QuizLibraryService : IQuizLibraryService
         ShowMode Mode = ShowMode.Quiz,
         bool BoardEnabled = false,
         bool SubjectWheelEnabled = false,
-        List<BoardTileRequest>? BoardTiles = null);
+        List<BoardTileRequest>? BoardTiles = null,
+        string BoardTitle = "The Showdown",
+        BoardLayout BoardLayout = BoardLayout.Track,
+        BoardStyle BoardStyle = BoardStyle.Aurora);
 
     private static string HashOwnerKey(string ownerKey) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(ownerKey)));
