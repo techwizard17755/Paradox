@@ -435,13 +435,14 @@ internal sealed class GameService : IGameService
                 .Select((question, index) => (question, index))
                 .Where(entry =>
                     string.Equals(entry.question.Subject, chosenSubject, StringComparison.OrdinalIgnoreCase) &&
-                    (game.WheelForBoardTurn || game.UnusedQuestionIndexes.Contains(entry.index)))
+                    ((game.WheelForBoardTurn && game.PhrasePuzzle is null) ||
+                     game.UnusedQuestionIndexes.Contains(entry.index)))
                 .ToArray();
             if (questions.Length == 0)
                 return Conflict("That subject has no questions available.");
 
             var selected = questions[RandomNumberGenerator.GetInt32(questions.Length)];
-            if (!game.WheelForBoardTurn)
+            if (!game.WheelForBoardTurn || game.PhrasePuzzle is not null)
                 game.UnusedQuestionIndexes.Remove(selected.index);
             game.CurrentQuestionIndex = selected.index;
             game.ActiveSubject = chosenSubject;
@@ -524,7 +525,8 @@ internal sealed class GameService : IGameService
         return game.Questions
             .Select((question, index) => (question, index))
             .Where(entry =>
-                (game.WheelForBoardTurn || game.UnusedQuestionIndexes.Contains(entry.index)) &&
+                ((game.WheelForBoardTurn && game.PhrasePuzzle is null) ||
+                 game.UnusedQuestionIndexes.Contains(entry.index)) &&
                 (string.IsNullOrWhiteSpace(game.WheelSubjectConstraint) ||
                  string.Equals(entry.question.Subject, game.WheelSubjectConstraint, StringComparison.OrdinalIgnoreCase)))
             .Select(entry => entry.question.Subject)
@@ -542,6 +544,24 @@ internal sealed class GameService : IGameService
         game.WheelForBoardTurn = isBoardTurn;
         game.WheelSubjectConstraint = subjectConstraint;
         game.TileMessage = isBoardTurn ? "A question tile is waiting for the subject wheel." : null;
+    }
+
+    private static void PreparePhraseBoardQuestionDraw(Game game, string? subjectConstraint)
+    {
+        if (game.PhrasePuzzle is null)
+            return;
+
+        var hasAvailableQuestion = game.Questions
+            .Select((question, index) => (question, index))
+            .Any(entry =>
+                game.UnusedQuestionIndexes.Contains(entry.index) &&
+                (string.IsNullOrWhiteSpace(subjectConstraint) ||
+                 string.Equals(entry.question.Subject, subjectConstraint, StringComparison.OrdinalIgnoreCase)));
+        if (hasAvailableQuestion)
+            return;
+
+        game.UnusedQuestionIndexes.Clear();
+        game.UnusedQuestionIndexes.AddRange(Enumerable.Range(0, game.Questions.Count));
     }
 
     private static void ResolveBoardTile(Game game, Player player, int depth)
@@ -564,6 +584,7 @@ internal sealed class GameService : IGameService
             case BoardTileAction.Question:
                 game.FinishAfterTurn = game.PhrasePuzzle is null &&
                     player.Position == game.BoardTiles.Count - 1;
+                PreparePhraseBoardQuestionDraw(game, tile.Subject);
                 if (game.SubjectWheelEnabled)
                 {
                     BeginWheel(game, isBoardTurn: true, tile.Subject);
@@ -571,10 +592,14 @@ internal sealed class GameService : IGameService
                 }
                 var matchingQuestions = game.Questions
                     .Select((question, index) => (question, index))
-                    .Where(entry => string.IsNullOrWhiteSpace(tile.Subject) ||
-                        string.Equals(entry.question.Subject, tile.Subject, StringComparison.OrdinalIgnoreCase))
+                    .Where(entry =>
+                        (game.PhrasePuzzle is null || game.UnusedQuestionIndexes.Contains(entry.index)) &&
+                        (string.IsNullOrWhiteSpace(tile.Subject) ||
+                         string.Equals(entry.question.Subject, tile.Subject, StringComparison.OrdinalIgnoreCase)))
                     .ToArray();
                 var selectedQuestion = matchingQuestions[RandomNumberGenerator.GetInt32(matchingQuestions.Length)];
+                if (game.PhrasePuzzle is not null)
+                    game.UnusedQuestionIndexes.Remove(selectedQuestion.index);
                 game.CurrentQuestionIndex = selectedQuestion.index;
                 game.ActiveSubject = selectedQuestion.question.Subject;
                 game.TileMessage = $"{player.Username} landed on a question tile.";
