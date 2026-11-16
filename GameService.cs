@@ -48,8 +48,8 @@ internal sealed class GameService : IGameService
         if (phrasePuzzleError is not null)
             return (null, phrasePuzzleError);
 
-        if (request.Questions is null || request.Questions.Count == 0 || request.Questions.Count > 30)
-            return (null, "A quiz needs between 1 and 30 questions.");
+        if (request.Questions is null || request.Questions.Count is < 1 or > 60)
+            return (null, "A quiz needs between 1 and 60 questions.");
 
         foreach (var question in request.Questions)
         {

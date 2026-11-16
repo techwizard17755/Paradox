@@ -217,8 +217,8 @@ internal sealed class QuizLibraryService : IQuizLibraryService
     {
         if (string.IsNullOrWhiteSpace(request.QuizName))
             return "Add a name for your quiz.";
-        if (request.Questions is null || request.Questions.Count is < 1 or > 30)
-            return "A quiz needs between 1 and 30 questions.";
+        if (request.Questions is null || request.Questions.Count is < 1 or > 60)
+            return "A quiz needs between 1 and 60 questions.";
         if (request.Description?.Length > 280)
             return "The quiz description must be 280 characters or fewer.";
         if (!QuizThemes.IsSupported(request.Theme))

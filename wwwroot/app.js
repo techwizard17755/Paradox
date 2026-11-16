@@ -2266,7 +2266,7 @@ document.addEventListener("click", async event => {
   }
   if (action === "add-question") {
     syncQuestionsFromForm();
-    if (questions.length >= 30) return notify("A quiz can have up to 30 questions.");
+    if (questions.length >= 60) return notify("A quiz can have up to 60 questions.");
     questions.push(newQuestion());
     drawQuestionCards();
     document.querySelector(`[data-question="${questions.length - 1}"] .question-prompt`)?.focus();
