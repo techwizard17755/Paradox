@@ -258,20 +258,23 @@ body.v2-mode[data-page] .solar-orbit {
   position: absolute;
   top: 50%;
   left: 50%;
+  --orbit-offset: 0deg;
   border: 1px solid rgba(255, 228, 163, .32);
   border-radius: 50%;
   box-shadow: 0 0 14px rgba(255, 194, 110, .06);
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%) rotate(var(--orbit-offset));
   animation: v2-solar-orbit 14s linear infinite;
 }
 
 body.v2-mode[data-page] .solar-orbit-one {
+  --orbit-offset: 18deg;
   width: 30%;
   height: 23%;
   animation-duration: 8s;
 }
 
 body.v2-mode[data-page] .solar-orbit-two {
+  --orbit-offset: 91deg;
   width: 47%;
   height: 35%;
   border-color: rgba(255, 157, 199, .3);
@@ -280,6 +283,7 @@ body.v2-mode[data-page] .solar-orbit-two {
 }
 
 body.v2-mode[data-page] .solar-orbit-three {
+  --orbit-offset: 203deg;
   width: 66%;
   height: 49%;
   border-color: rgba(173, 151, 255, .34);
@@ -287,6 +291,7 @@ body.v2-mode[data-page] .solar-orbit-three {
 }
 
 body.v2-mode[data-page] .solar-orbit-four {
+  --orbit-offset: 287deg;
   width: 86%;
   height: 63%;
   border-color: rgba(115, 224, 255, .28);
@@ -1453,8 +1458,8 @@ body.v2-mode[data-page] .footer {
 }
 
 @keyframes v2-solar-orbit {
-  from { transform: translate(-50%, -50%) rotate(0deg); }
-  to { transform: translate(-50%, -50%) rotate(360deg); }
+  from { transform: translate(-50%, -50%) rotate(var(--orbit-offset, 0deg)); }
+  to { transform: translate(-50%, -50%) rotate(calc(var(--orbit-offset, 0deg) + 360deg)); }
 }
 
 @keyframes v2-sun-pulse {
