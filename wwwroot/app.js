@@ -676,6 +676,13 @@ function renderJoin() {
         </div>
         <div class="float-tile tile-one">✦</div><div class="float-tile tile-two">◈</div><div class="float-tile tile-three">✧</div>
       </div>
+      ${v2Experience ? `<div class="solar-system" aria-hidden="true">
+        <div class="solar-sun"></div>
+        <div class="solar-orbit solar-orbit-one"><span class="solar-planet planet-aqua"></span></div>
+        <div class="solar-orbit solar-orbit-two"><span class="solar-planet planet-rose"></span></div>
+        <div class="solar-orbit solar-orbit-three"><span class="solar-planet planet-saturn"><span class="solar-rings"></span></span></div>
+        <div class="solar-orbit solar-orbit-four"><span class="solar-planet planet-gold"></span></div>
+      </div>` : ""}
       <div class="hero-copy-block">
         <p class="eyebrow"><span class="eyebrow-mark">✦</span> ${v2Experience ? "PARADOX V2 · THE SHOW STARTS HERE" : "A quiz night, reimagined"}</p>
         <h1>${v2Experience ? "Make tonight.<br><em>Legendary.</em>" : "Think fast.<br><em>Have fun.</em>"}</h1>

@@ -189,21 +189,149 @@ body.v2-mode[data-page] .hero {
 }
 
 body.v2-mode[data-page] .hero-v2::before {
+  display: none;
+}
+
+body.v2-mode[data-page] .solar-system {
   position: absolute;
-  z-index: -1;
-  top: 3%;
-  right: 3%;
-  width: min(58vw, 700px);
+  z-index: 0;
+  top: 50%;
+  right: -1%;
+  width: min(64vw, 720px);
   aspect-ratio: 1;
-  border: 1px solid rgba(106, 215, 255, .12);
-  border-radius: 50%;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+body.v2-mode[data-page] .solar-system::after {
+  position: absolute;
+  inset: 0;
   background:
-    radial-gradient(circle, rgba(25, 43, 76, .08) 0 29%, transparent 29.2%),
-    radial-gradient(circle, rgba(80, 106, 248, .09) 0 43%, transparent 43.3%),
-    radial-gradient(circle, transparent 59%, rgba(100, 215, 255, .13) 59.2% 59.5%, transparent 59.8%);
+    radial-gradient(circle at 16% 34%, rgba(255, 255, 255, .95) 0 1px, transparent 2.5px),
+    radial-gradient(circle at 77% 31%, rgba(255, 220, 121, .95) 0 1.5px, transparent 3px),
+    radial-gradient(circle at 24% 76%, rgba(255, 151, 205, .9) 0 1px, transparent 2.5px),
+    radial-gradient(circle at 83% 68%, rgba(164, 232, 255, .95) 0 1.5px, transparent 3px);
   content: "";
   pointer-events: none;
-  animation: v2-orbit 26s linear infinite;
+  animation: v2-solar-sparkle 2.8s ease-in-out infinite alternate;
+}
+
+body.v2-mode[data-page] .solar-sun {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+  width: clamp(58px, 7vw, 82px);
+  aspect-ratio: 1;
+  border: 2px solid rgba(255, 246, 191, .9);
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 29%, #fffbd4 0 9%, #ffe36a 28%, #ffad52 66%, #ff6588 100%);
+  box-shadow: 0 0 18px rgba(255, 221, 100, .85), 0 0 50px rgba(255, 154, 87, .65), 0 0 115px rgba(255, 103, 157, .28);
+  transform: translate(-50%, -50%);
+  animation: v2-sun-pulse 3.2s ease-in-out infinite;
+}
+
+body.v2-mode[data-page] .solar-sun::before {
+  position: absolute;
+  inset: -23px;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 209, 94, .72) 0deg 5deg, transparent 5deg 18deg);
+  content: "";
+  mask: radial-gradient(circle, transparent 0 57%, #000 60% 72%, transparent 76%);
+  -webkit-mask: radial-gradient(circle, transparent 0 57%, #000 60% 72%, transparent 76%);
+  animation: v2-sun-rays 32s linear infinite;
+}
+
+body.v2-mode[data-page] .solar-sun::after {
+  position: absolute;
+  top: 17%;
+  left: 22%;
+  width: 14%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: rgba(255, 255, 231, .95);
+  content: "";
+  filter: blur(1px);
+}
+
+body.v2-mode[data-page] .solar-orbit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border: 1px solid rgba(255, 228, 163, .32);
+  border-radius: 50%;
+  box-shadow: 0 0 14px rgba(255, 194, 110, .06);
+  transform: translate(-50%, -50%);
+  animation: v2-solar-orbit 14s linear infinite;
+}
+
+body.v2-mode[data-page] .solar-orbit-one {
+  width: 30%;
+  height: 23%;
+  animation-duration: 8s;
+}
+
+body.v2-mode[data-page] .solar-orbit-two {
+  width: 47%;
+  height: 35%;
+  border-color: rgba(255, 157, 199, .3);
+  animation-duration: 14s;
+  animation-direction: reverse;
+}
+
+body.v2-mode[data-page] .solar-orbit-three {
+  width: 66%;
+  height: 49%;
+  border-color: rgba(173, 151, 255, .34);
+  animation-duration: 21s;
+}
+
+body.v2-mode[data-page] .solar-orbit-four {
+  width: 86%;
+  height: 63%;
+  border-color: rgba(115, 224, 255, .28);
+  animation-duration: 31s;
+  animation-direction: reverse;
+}
+
+body.v2-mode[data-page] .solar-planet {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  display: block;
+  width: 14px;
+  aspect-ratio: 1;
+  border: 1px solid rgba(255, 255, 255, .7);
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 28%, #fff 0 6%, #71edff 23%, #3687ee 74%, #5246b7 100%);
+  box-shadow: 0 0 17px rgba(106, 224, 255, .68);
+  transform: translate(-50%, -50%);
+}
+
+body.v2-mode[data-page] .planet-rose {
+  width: 18px;
+  background: radial-gradient(circle at 32% 28%, #fff4f8 0 7%, #ffb1d0 26%, #ff5f9d 72%, #c23591 100%);
+  box-shadow: 0 0 19px rgba(255, 112, 177, .7);
+}
+
+body.v2-mode[data-page] .planet-saturn {
+  width: 24px;
+  background: radial-gradient(circle at 32% 28%, #fff9d1 0 7%, #f6d881 28%, #d99263 74%, #9d5a77 100%);
+  box-shadow: 0 0 18px rgba(255, 196, 120, .6);
+}
+
+body.v2-mode[data-page] .solar-rings {
+  position: absolute;
+  inset: 5px -9px;
+  border: 2px solid rgba(255, 227, 160, .88);
+  border-radius: 50%;
+  transform: rotate(-24deg);
+}
+
+body.v2-mode[data-page] .planet-gold {
+  width: 20px;
+  background: radial-gradient(circle at 32% 28%, #fffddd 0 7%, #ffe777 27%, #ffae46 74%, #ef6877 100%);
+  box-shadow: 0 0 20px rgba(255, 210, 94, .7);
 }
 
 body.v2-mode[data-page] .hero-copy-block,
@@ -1022,6 +1150,11 @@ body.v2-mode[data-page] .join-card {
   box-shadow: 0 34px 100px rgba(3, 5, 23, .32), 0 0 55px rgba(255, 106, 177, .12);
 }
 
+body.v2-mode[data-page="join"] .join-card {
+  background: linear-gradient(145deg, rgba(38, 29, 73, .78), rgba(21, 21, 53, .82));
+  backdrop-filter: blur(18px);
+}
+
 body.v2-mode[data-page] .join-card::before {
   background: radial-gradient(circle, rgba(255, 219, 109, .27), rgba(255, 113, 179, .17) 43%, transparent 72%);
 }
@@ -1319,6 +1452,25 @@ body.v2-mode[data-page] .footer {
   50% { box-shadow: 0 0 38px rgba(255, 197, 89, .32), 0 0 0 10px rgba(170, 127, 255, .11); }
 }
 
+@keyframes v2-solar-orbit {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+@keyframes v2-sun-pulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.09); }
+}
+
+@keyframes v2-sun-rays {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes v2-solar-sparkle {
+  0%, 100% { opacity: .48; scale: .98; }
+  50% { opacity: 1; scale: 1.02; }
+}
+
 @keyframes v2-rise-in {
   from { opacity: 0; transform: translateY(17px); }
   to { opacity: 1; transform: translateY(0); }
@@ -1332,10 +1484,6 @@ body.v2-mode[data-page] .footer {
 @keyframes v2-tile-float {
   0%, 100% { translate: 0 0; rotate: 0deg; }
   50% { translate: 0 -12px; rotate: 4deg; }
-}
-
-@keyframes v2-orbit {
-  to { rotate: 360deg; }
 }
 
 @keyframes v2-gradient-drift {
@@ -1421,10 +1569,11 @@ body.v2-mode[data-page] .footer {
     padding-top: 22px;
   }
 
-  body.v2-mode[data-page] .hero-v2::before {
-    top: 16%;
+  body.v2-mode[data-page] .solar-system {
+    top: 49%;
     right: 0;
-    width: 90vw;
+    width: min(100%, 640px);
+    opacity: .7;
   }
 
   body.v2-mode[data-page] .decor-board {
@@ -1520,10 +1669,11 @@ body.v2-mode[data-page] .footer {
     min-height: 0;
   }
 
-  body.v2-mode[data-page] .hero-v2::before {
-    top: 16%;
+  body.v2-mode[data-page] .solar-system {
+    top: 62%;
     right: 0;
-    width: 100%;
+    width: min(100%, 430px);
+    opacity: .48;
   }
 
   body.v2-mode[data-page] .hero h1 {
