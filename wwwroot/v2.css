@@ -48,6 +48,21 @@ body.v2-mode::before {
   mask-image: linear-gradient(to bottom, black, transparent 82%);
 }
 
+body.v2-mode::after {
+  position: fixed;
+  z-index: -1;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 52%, rgba(87, 240, 210, .11), transparent 42%),
+    radial-gradient(ellipse at 82% 24%, rgba(119, 115, 245, .17), transparent 43%);
+  background-size: 150% 150%, 160% 160%;
+  background-position: 0% 45%, 100% 0%;
+  content: "";
+  opacity: .7;
+  pointer-events: none;
+  animation: v2-stage-light-sweep 16s ease-in-out infinite alternate;
+}
+
 body.v2-mode[data-page] .ambient {
   opacity: .8;
   filter: blur(28px);
@@ -531,6 +546,21 @@ body.v2-mode[data-page] .template-card {
   transition: transform .23s, border-color .23s, box-shadow .23s, background .23s;
 }
 
+body.v2-mode[data-page] .show-mode-card::before,
+body.v2-mode[data-page] .template-card::before {
+  position: absolute;
+  z-index: 1;
+  top: -40%;
+  bottom: -40%;
+  left: -75%;
+  width: 42%;
+  background: linear-gradient(90deg, transparent, rgba(210, 250, 255, .16), transparent);
+  content: "";
+  pointer-events: none;
+  transform: skewX(-18deg);
+  transition: left .65s cubic-bezier(.2, .75, .25, 1);
+}
+
 body.v2-mode[data-page="create"] .show-mode-card,
 body.v2-mode[data-page="create"] .template-card,
 body.v2-mode[data-page="library"] .library-card,
@@ -565,10 +595,25 @@ body.v2-mode[data-page] .template-card::after {
 
 body.v2-mode[data-page] .show-mode-card:hover,
 body.v2-mode[data-page] .template-card:hover {
-  transform: translateY(-5px);
+  transform: translateY(-7px) rotate(-.45deg) scale(1.015);
   border-color: rgba(87, 240, 210, .38);
   background: linear-gradient(145deg, rgba(27, 52, 75, .9), rgba(13, 30, 49, .9));
   box-shadow: 0 18px 38px rgba(0, 0, 0, .2), 0 0 28px rgba(87, 240, 210, .07);
+}
+
+body.v2-mode[data-page] .show-mode-card:nth-child(even):hover,
+body.v2-mode[data-page] .template-card:nth-child(even):hover {
+  transform: translateY(-7px) rotate(.45deg) scale(1.015);
+}
+
+body.v2-mode[data-page] .show-mode-card:hover::before,
+body.v2-mode[data-page] .template-card:hover::before {
+  left: 140%;
+}
+
+body.v2-mode[data-page] .show-mode-card:active,
+body.v2-mode[data-page] .template-card:active {
+  transform: translateY(-1px) scale(.99);
 }
 
 body.v2-mode[data-page] .show-mode-card.selected {
@@ -703,6 +748,19 @@ body.v2-mode[data-page] .waiting-panel h2 {
   color: #f1f6fc;
 }
 
+body.v2-mode[data-page="host"] .game-question.question-enter,
+body.v2-mode[data-page="play"] .game-question.question-enter {
+  animation: v2-question-arrive .62s cubic-bezier(.16, .82, .28, 1) both;
+}
+
+body.v2-mode[data-page="play"] .game-question.question-enter + .answer-grid .answer-card {
+  animation: v2-answer-pop .5s cubic-bezier(.16, .82, .28, 1) both;
+}
+
+body.v2-mode[data-page="play"] .game-question.question-enter + .answer-grid .answer-card:nth-child(2) { animation-delay: .06s; }
+body.v2-mode[data-page="play"] .game-question.question-enter + .answer-grid .answer-card:nth-child(3) { animation-delay: .12s; }
+body.v2-mode[data-page="play"] .game-question.question-enter + .answer-grid .answer-card:nth-child(4) { animation-delay: .18s; }
+
 body.v2-mode[data-page] .answer-card {
   min-height: 88px;
   border-color: rgba(162, 196, 226, .18);
@@ -822,6 +880,20 @@ body.v2-mode[data-page] .footer span:first-child {
 @keyframes v2-wheel-glow {
   0%, 100% { box-shadow: 0 0 18px rgba(87, 240, 210, .12), 0 0 0 5px rgba(255, 255, 255, .025); }
   50% { box-shadow: 0 0 34px rgba(87, 240, 210, .3), 0 0 0 9px rgba(98, 215, 255, .06); }
+}
+
+@keyframes v2-stage-light-sweep {
+  to { background-position: 100% 55%, 0% 100%; opacity: .95; }
+}
+
+@keyframes v2-question-arrive {
+  from { opacity: 0; transform: translateY(18px) scale(.975); filter: blur(4px); }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+@keyframes v2-answer-pop {
+  from { opacity: 0; translate: 0 12px; scale: .98; }
+  to { opacity: 1; translate: 0 0; scale: 1; }
 }
 
 @keyframes v2-glow-breathe {
@@ -1036,6 +1108,8 @@ body.v2-mode[data-page] .footer span:first-child {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  body.v2-mode::before,
+  body.v2-mode::after,
   body.v2-mode[data-page] *,
   body.v2-mode[data-page] *::before,
   body.v2-mode[data-page] *::after {
