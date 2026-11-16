@@ -19,9 +19,15 @@ let boardTiles = defaultBoardTiles();
 let boardTitle = "The Showdown";
 let boardLayout = "Track";
 let boardStyle = "Aurora";
+let selectedBoardImageTile = 0;
 let toastTimer = null;
 let wheelAnimationUntil = 0;
 let pendingWheelResult = "";
+let diceAnimationUntil = 0;
+const boardArtwork = [
+  ["comet", "Comet"], ["crown", "Crown"], ["crystal", "Crystal"], ["dice", "Lucky die"],
+  ["flame", "Flame"], ["planet", "Planet"], ["rocket", "Rocket"], ["treasure", "Treasure"]
+];
 const quizThemes = [
   { id: "violet", name: "Dream", color: "#a98bff" },
   { id: "ocean", name: "Ocean", color: "#66e4d1" },
@@ -44,6 +50,8 @@ function newQuestion() {
     options: ["", ""],
     correctOptionIndex: 0,
     acceptedAnswers: [""],
+    answerPoints: [10],
+    rarestAnswerScoring: false,
     timeLimitSeconds: 20
   };
 }
@@ -64,6 +72,162 @@ function defaultBoardTiles() {
     { action: "Question", amount: 100, subject: "", prompt: "", label: "", imageDataUrl: "" }
   ];
 }
+
+function choiceTemplateQuestion(prompt, subject, options, correctOptionIndex = 0) {
+  return { ...newQuestion(), prompt, subject, options, correctOptionIndex };
+}
+
+function typedTemplateQuestion(prompt, subject, acceptedAnswers, answerPoints = []) {
+  return {
+    ...newQuestion(),
+    prompt,
+    subject,
+    type: "TypeAnswer",
+    acceptedAnswers,
+    answerPoints,
+    rarestAnswerScoring: answerPoints.length > 0
+  };
+}
+
+function makeTemplateBoard(layout = "Track") {
+  const tiles = defaultBoardTiles();
+  tiles[1] = { ...tiles[1], label: "Quick question" };
+  tiles[3] = { ...tiles[3], label: "Bonus round" };
+  tiles[5] = { ...tiles[5], label: "Challenge" };
+  return { tiles, layout };
+}
+
+const showTemplates = [
+  {
+    id: "rarest-answer-wins", title: "Rarest Answer Wins", category: "Secret scoring",
+    description: "Type an answer to earn its authored points. Example: Africa = 3, Germany = 24.",
+    mode: "Quiz", theme: "coral", questions: [
+      typedTemplateQuestion("Name a place in Africa or Europe.", "Geography", ["Germany", "Africa", "France"], [24, 3, 18]),
+      typedTemplateQuestion("Name a continent.", "Geography", ["Africa", "Asia", "Europe"], [3, 14, 9]),
+      typedTemplateQuestion("Name a planet.", "Space", ["Mars", "Venus", "Jupiter"], [21, 8, 15])
+    ]
+  },
+  {
+    id: "world-explorer", title: "World Explorer", category: "Trivia",
+    description: "A geography sprint through landmarks, capitals, and oceans.",
+    mode: "Quiz", theme: "ocean", subjectWheelEnabled: true, questions: [
+      choiceTemplateQuestion("Which city is the capital of Japan?", "Capitals", ["Tokyo", "Kyoto", "Osaka", "Nagoya"], 0),
+      choiceTemplateQuestion("Which is the world's largest ocean?", "Oceans", ["Atlantic", "Indian", "Pacific", "Arctic"], 2),
+      choiceTemplateQuestion("The Eiffel Tower is in which city?", "Landmarks", ["Rome", "Paris", "Madrid", "Lisbon"], 1)
+    ]
+  },
+  {
+    id: "space-odyssey", title: "Space Odyssey", category: "Trivia",
+    description: "Explore planets, stars, and the wider universe.",
+    mode: "Quiz", theme: "violet", subjectWheelEnabled: true, questions: [
+      choiceTemplateQuestion("Which planet is known as the Red Planet?", "Planets", ["Mars", "Venus", "Neptune", "Mercury"], 0),
+      choiceTemplateQuestion("What is at the center of our solar system?", "Solar system", ["Earth", "The Sun", "Jupiter", "The Moon"], 1),
+      choiceTemplateQuestion("Which planet has the most visible rings?", "Planets", ["Saturn", "Mars", "Earth", "Venus"], 0)
+    ]
+  },
+  {
+    id: "movie-night", title: "Movie Night", category: "Pop culture",
+    description: "A friendly film quiz for the whole room.",
+    mode: "Quiz", theme: "sunset", questions: [
+      choiceTemplateQuestion("What is the name of the cowboy in Toy Story?", "Animation", ["Woody", "Buzz", "Rex", "Andy"], 0),
+      choiceTemplateQuestion("Which character is known as the Dark Knight?", "Heroes", ["Superman", "Batman", "Flash", "Robin"], 1),
+      choiceTemplateQuestion("In Finding Nemo, what kind of fish is Nemo?", "Animation", ["Clownfish", "Pufferfish", "Goldfish", "Blue tang"], 0)
+    ]
+  },
+  {
+    id: "soundcheck", title: "Soundcheck", category: "Music",
+    description: "Build a music round about artists, instruments, or genres.",
+    mode: "Quiz", theme: "coral", subjectWheelEnabled: true, questions: [
+      choiceTemplateQuestion("Which instrument has keys, pedals, and strings?", "Instruments", ["Piano", "Flute", "Drum", "Trumpet"], 0),
+      choiceTemplateQuestion("How many strings does a standard guitar usually have?", "Instruments", ["Four", "Five", "Six", "Eight"], 2),
+      choiceTemplateQuestion("Which family does the violin belong to?", "Orchestra", ["Strings", "Brass", "Woodwind", "Percussion"], 0)
+    ]
+  },
+  {
+    id: "science-lab", title: "Science Lab", category: "Learning",
+    description: "Turn everyday science into a fast, lively show.",
+    mode: "Quiz", theme: "citrus", subjectWheelEnabled: true, questions: [
+      choiceTemplateQuestion("What gas do plants absorb from the air?", "Biology", ["Oxygen", "Carbon dioxide", "Helium", "Hydrogen"], 1),
+      choiceTemplateQuestion("What force pulls objects toward Earth?", "Physics", ["Magnetism", "Gravity", "Friction", "Pressure"], 1),
+      choiceTemplateQuestion("At what temperature does water freeze in Celsius?", "Chemistry", ["0°", "10°", "32°", "100°"], 0)
+    ]
+  },
+  {
+    id: "time-machine", title: "Time Machine", category: "Learning",
+    description: "A customizable trip through people, places, and moments in history.",
+    mode: "Quiz", theme: "sunset", questions: [
+      choiceTemplateQuestion("Which ancient civilization built the pyramids at Giza?", "Ancient world", ["Egyptians", "Romans", "Vikings", "Maya"], 0),
+      choiceTemplateQuestion("What was the first name of Shakespeare?", "Writers", ["William", "Thomas", "Henry", "Edward"], 0),
+      choiceTemplateQuestion("The first Moon landing happened in which decade?", "Space history", ["1950s", "1960s", "1970s", "1980s"], 1)
+    ]
+  },
+  {
+    id: "food-frenzy", title: "Food Frenzy", category: "Audience show",
+    description: "A no-wrong-answers taste test with a live response reveal.",
+    mode: "Quiz", theme: "citrus", questions: [
+      { ...choiceTemplateQuestion("Pick your ideal pizza topping.", "Food", ["Mushrooms", "Pineapple", "Olives", "Pepperoni"]), type: "Survey" },
+      { ...choiceTemplateQuestion("Choose a dessert for the finale.", "Dessert", ["Ice cream", "Cake", "Fruit", "Cookies"]), type: "Survey" },
+      { ...choiceTemplateQuestion("Which meal would you try first?", "Food", ["Sushi", "Tacos", "Curry", "Pasta"]), type: "Survey" }
+    ]
+  },
+  {
+    id: "quickfire-numbers", title: "Quickfire Numbers", category: "Typed answers",
+    description: "Players type their answers instead of choosing from a list.",
+    mode: "Quiz", theme: "ocean", questions: [
+      typedTemplateQuestion("How many sides does a hexagon have?", "Math", ["6"]),
+      typedTemplateQuestion("What is 9 × 7?", "Math", ["63"]),
+      typedTemplateQuestion("How many minutes are in one hour?", "Math", ["60"])
+    ]
+  },
+  {
+    id: "brain-teasers", title: "Brain Teasers", category: "Typed answers",
+    description: "Short riddles and word puzzles with flexible accepted answers.",
+    mode: "Quiz", theme: "violet", questions: [
+      typedTemplateQuestion("What has hands but cannot clap?", "Riddles", ["A clock", "Clock"]),
+      typedTemplateQuestion("What word becomes shorter when you add two letters?", "Wordplay", ["Short"]),
+      typedTemplateQuestion("What has a face and two hands but no arms or legs?", "Riddles", ["A clock", "Clock"])
+    ]
+  },
+  {
+    id: "treasure-trail", title: "Treasure Trail", category: "Board game",
+    description: "A winding path with question spaces, bonuses, and surprises.",
+    mode: "Board", theme: "citrus", boardTitle: "Treasure Trail", boardStyle: "Candy",
+    questions: [
+      choiceTemplateQuestion("Which metal is often used to make coins?", "Treasures", ["Gold", "Wood", "Cotton", "Glass"], 0),
+      choiceTemplateQuestion("Which direction does the Sun rise from?", "Navigation", ["East", "West", "North", "South"], 0),
+      typedTemplateQuestion("Name a gemstone.", "Treasures", ["Ruby", "Emerald", "Sapphire"])
+    ]
+  },
+  {
+    id: "snakes-and-ladders", title: "Snakes & Ladders Show", category: "Board game",
+    description: "A serpentine board with question tiles and movement twists.",
+    mode: "Board", theme: "coral", boardTitle: "The Big Climb", boardLayout: "SnakesAndLadders",
+    questions: [
+      choiceTemplateQuestion("Which animal is the tallest in the world?", "Nature", ["Giraffe", "Elephant", "Ostrich", "Camel"], 0),
+      choiceTemplateQuestion("How many legs does a spider have?", "Nature", ["Six", "Eight", "Ten", "Twelve"], 1),
+      choiceTemplateQuestion("What do bees make?", "Nature", ["Honey", "Milk", "Silk", "Wax paper"], 0)
+    ]
+  },
+  {
+    id: "classroom-combo", title: "Classroom Combo", category: "Custom show",
+    description: "Combine a board, typed answers, and a subject wheel.",
+    mode: "Custom", theme: "ocean", boardEnabled: true, subjectWheelEnabled: true,
+    boardTitle: "Classroom Quest", questions: [
+      choiceTemplateQuestion("Which shape has three sides?", "Math", ["Triangle", "Square", "Circle", "Hexagon"], 0),
+      typedTemplateQuestion("What is the name of our home planet?", "Space", ["Earth"]),
+      choiceTemplateQuestion("Which is a mammal?", "Nature", ["Dolphin", "Shark", "Trout", "Octopus"], 0)
+    ]
+  },
+  {
+    id: "audience-poll", title: "Audience Poll", category: "Custom show",
+    description: "Gather opinions alongside your scored questions.",
+    mode: "Custom", theme: "violet", subjectWheelEnabled: true, questions: [
+      { ...choiceTemplateQuestion("Which superpower would you pick?", "Big questions", ["Flying", "Invisibility", "Time travel", "Super strength"]), type: "Survey" },
+      choiceTemplateQuestion("Which planet is closest to the Sun?", "Space", ["Mercury", "Venus", "Earth", "Mars"], 0),
+      { ...choiceTemplateQuestion("Choose the best game-night snack.", "Audience vote", ["Popcorn", "Chips", "Fruit", "Cookies"]), type: "Survey" }
+    ]
+  }
+];
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, character => ({
@@ -311,7 +475,58 @@ function renderCreateChooser() {
             <span class="format-card-link">Open ${title} <span aria-hidden="true">→</span></span>
           </a>`).join("")}
       </div>
+    </section>
+    <section class="template-library" aria-labelledby="template-library-heading">
+      <div class="template-library-heading">
+        <div><p class="eyebrow">READY-MADE STARTING POINTS</p><h2 id="template-library-heading">Pick a show template</h2></div>
+        <span>${showTemplates.length} editable templates</span>
+      </div>
+      <p class="template-library-note">Every template opens in the regular editor. Change the questions, scoring, colors, board, and wheel before you host.</p>
+      <div class="template-grid">
+        ${showTemplates.map(template => `
+          <article class="template-card">
+            <span class="template-category">${escapeHtml(template.category)}</span>
+            <h3>${escapeHtml(template.title)}</h3>
+            <p>${escapeHtml(template.description)}</p>
+            <button type="button" class="secondary-btn" data-action="use-template" data-template="${template.id}">Edit this template <span aria-hidden="true">→</span></button>
+          </article>`).join("")}
+      </div>
     </section>`;
+}
+
+function startFromTemplate(templateId) {
+    const template = showTemplates.find(candidate => candidate.id === templateId);
+    if (!template) return notify("That show template could not be found.");
+    questions = template.questions.map(question => ({
+      ...question,
+      options: [...question.options],
+      acceptedAnswers: [...question.acceptedAnswers],
+      answerPoints: [...question.answerPoints]
+    }));
+    const board = makeTemplateBoard(template.boardLayout || "Track");
+    boardEnabled = template.mode === "Board" || Boolean(template.boardEnabled);
+    subjectWheelEnabled = Boolean(template.subjectWheelEnabled);
+    currentTheme = template.theme;
+    showMode = template.mode;
+    boardTiles = board.tiles;
+    boardTitle = template.boardTitle || "The Showdown";
+    boardLayout = board.layout;
+    boardStyle = template.boardStyle || "Aurora";
+    selectedBoardImageTile = 0;
+    savedQuizId = null;
+    builderDraft = {
+      quizName: template.title,
+      description: template.description,
+      theme: template.theme,
+      mode: template.mode,
+      boardEnabled,
+      subjectWheelEnabled,
+      boardTiles,
+      boardTitle,
+      boardLayout,
+      boardStyle
+    };
+    navigateTo(modePath(template.mode));
 }
 
 function syncQuestionsFromForm() {
@@ -330,6 +545,10 @@ function syncQuestionsFromForm() {
       options: choiceFields.length ? choiceFields.map(input => input.value) : existing.options || [],
       correctOptionIndex: selected ? Number(selected.value) : existing.correctOptionIndex || 0,
       acceptedAnswers: acceptedFields.length ? acceptedFields.map(input => input.value) : existing.acceptedAnswers || [""],
+      answerPoints: [...card.querySelectorAll(".answer-point-field")].length
+        ? [...card.querySelectorAll(".answer-point-field")].map(input => Number(input.value))
+        : existing.answerPoints || [],
+      rarestAnswerScoring: card.querySelector(".rarest-answer-toggle")?.checked || false,
       timeLimitSeconds: Number(card.querySelector(".question-footer .timer-select").value)
     };
   });
@@ -349,7 +568,8 @@ function syncBuilderSettingsFromForm() {
       subject: tile.querySelector(".board-tile-subject")?.value.trim() || "",
       prompt: tile.querySelector(".board-tile-prompt")?.value.trim() || "",
       label: tile.querySelector(".board-tile-label")?.value.trim() || "",
-      imageDataUrl: boardTiles[Number(tile.dataset.tile)]?.imageDataUrl || ""
+      imageDataUrl: boardTiles[Number(tile.dataset.tile)]?.imageDataUrl || "",
+      imageKey: boardTiles[Number(tile.dataset.tile)]?.imageKey || ""
     }));
   }
   const boardTitleInput = document.getElementById("board-title");
@@ -593,11 +813,16 @@ function drawQuestionCards() {
       </label>
       ${question.type === "TypeAnswer" ? `
         <div class="answer-type-note">Players type a response. Add accepted spelling variations; matching ignores capitalization and surrounding spaces.</div>
+        <label class="mode-toggle rarest-answer-toggle-row">
+          <input class="rarest-answer-toggle" type="checkbox" ${question.rarestAnswerScoring ? "checked" : ""}>
+          <span><strong>Rarest Answer Wins scoring</strong><small>Use each answer’s point value instead of speed points. Values stay hidden from players until the reveal.</small></span>
+        </label>
         <div class="accepted-answers">
           ${(Array.isArray(question.acceptedAnswers) && question.acceptedAnswers.length ? question.acceptedAnswers : [""]).map((answer, answerIndex) => `
-            <label class="accepted-answer-row">
+            <label class="accepted-answer-row ${question.rarestAnswerScoring ? "accepted-answer-scored" : ""}">
               <span class="accepted-answer-label">${answerIndex === 0 ? "Accepted answer" : `Also accept ${answerIndex + 1}`}</span>
               <input class="option-field accepted-answer-field" maxlength="100" placeholder="Type an answer that should count as correct" value="${escapeHtml(answer)}" required>
+              ${question.rarestAnswerScoring ? `<span class="accepted-answer-points-label">Points</span><input class="option-field answer-point-field" type="number" min="1" max="1000" value="${Number(question.answerPoints?.[answerIndex] ?? 10)}" aria-label="Points for answer ${answerIndex + 1}" required>` : ""}
               ${(Array.isArray(question.acceptedAnswers) ? question.acceptedAnswers.length : 0) > 1 ? `<button type="button" class="remove-answer" data-action="remove-accepted-answer" data-index="${questionIndex}" data-answer-index="${answerIndex}" aria-label="Remove accepted answer">×</button>` : ""}
             </label>`).join("")}
         </div>
@@ -615,7 +840,7 @@ function drawQuestionCards() {
         ${question.options.length < 4 ? `<button type="button" class="quiet-btn add-answer-btn" data-action="add-option" data-index="${questionIndex}">＋ Add choice</button>` : ""}
       `}
       <div class="question-footer">
-        <span class="question-type-caption">${question.type === "Survey" ? "Survey answers are gathered without scoring." : question.type === "TypeAnswer" ? "Correct answers earn points; matching ignores case." : "Correct answers earn points, with a speed bonus."}</span>
+        <span class="question-type-caption">${question.type === "Survey" ? "Survey answers are gathered without scoring." : question.type === "TypeAnswer" ? question.rarestAnswerScoring ? "Each accepted answer awards its configured points." : "Correct answers earn points; matching ignores case." : "Correct answers earn points, with a speed bonus."}</span>
         <label class="field-label" style="display:flex;align-items:center;gap:8px;margin:0">Timer
           <select class="timer-select" aria-label="Question timer">
             ${[10, 15, 20, 30, 45, 60].map(seconds => `<option value="${seconds}" ${seconds === question.timeLimitSeconds ? "selected" : ""}>${seconds} sec</option>`).join("")}
@@ -761,6 +986,16 @@ function safeBoardImageSrc(value) {
   return /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(value || "") ? value : "";
 }
 
+function boardArtworkSrc(key) {
+  return boardArtwork.some(([supportedKey]) => supportedKey === key)
+    ? `/images/board/${key}.svg`
+    : "";
+}
+
+function boardTileImageSrc(tile) {
+  return boardArtworkSrc(tile.imageKey) || safeBoardImageSrc(tile.imageDataUrl);
+}
+
 function boardTileDisplay(tile) {
   if (tile.label?.trim()) return tile.label.trim();
   const labels = {
@@ -802,7 +1037,7 @@ function boardGridPosition(index, tileCount, layout) {
 }
 
 function boardPreviewTile(tile, index, live = false, positions = []) {
-  const image = safeBoardImageSrc(tile.imageDataUrl);
+  const image = boardTileImageSrc(tile);
   const playersHere = live ? positions.filter(player => player.position === index) : [];
   return `<div class="board-visual-tile ${boardTileClass(tile.action)} ${index === 0 ? "board-visual-start" : ""}" ${live ? "" : `data-preview-tile="${index}"`}>
     <span class="board-visual-index">${index === 0 ? "START" : index + 1}</span>
@@ -866,8 +1101,8 @@ function renderBoardEditor() {
       <label class="field-label board-tile-extra">Tile artwork
         <input class="board-tile-image" type="file" accept="image/png,image/jpeg,image/webp" aria-label="Upload artwork for tile ${index + 1}">
       </label>
-      ${safeBoardImageSrc(tile.imageDataUrl)
-        ? `<div class="board-image-preview"><img src="${tile.imageDataUrl}" alt="Tile ${index + 1} artwork preview"><button type="button" class="quiet-btn" data-action="remove-board-image" data-index="${index}">Remove image</button></div>`
+      ${boardTileImageSrc(tile)
+        ? `<div class="board-image-preview"><img src="${boardTileImageSrc(tile)}" alt="Tile ${index + 1} artwork preview"><button type="button" class="quiet-btn" data-action="remove-board-image" data-index="${index}">Remove image</button></div>`
         : ""}
     </article>`;
   }).join("");
@@ -886,11 +1121,31 @@ function renderBoardEditor() {
       </select></label>
     </div>
     ${renderBoardPreview()}
+    ${renderBoardImageLibrary()}
     <div class="board-editor-intro board-tile-list-heading"><strong>Tile actions &amp; artwork</strong><span>Changes update the preview above</span></div>
     <div class="board-path">${tiles}</div>
     ${boardTiles.length < 40 ? `<button type="button" class="quiet-btn add-board-tile" data-action="add-board-tile">＋ Add a tile</button>` : ""}
     <p class="mode-settings-note">Images are resized and compressed before saving. Each image must stay under 60 KB; all board artwork together is limited to 400 KB.</p>
   </div>`;
+}
+
+function renderBoardImageLibrary() {
+  selectedBoardImageTile = Math.max(0, Math.min(selectedBoardImageTile, boardTiles.length - 1));
+  return `<section class="board-art-library" aria-labelledby="board-art-library-heading">
+    <div class="board-editor-intro"><strong id="board-art-library-heading">Artwork library</strong><span>Choose a tile, then select an illustration</span></div>
+    <label class="field-label" for="board-image-target">Add artwork to
+      <select id="board-image-target" class="timer-select">
+        ${boardTiles.map((tile, index) => `<option value="${index}" ${selectedBoardImageTile === index ? "selected" : ""}>${index === 0 ? "Start" : `Tile ${index + 1}`} · ${escapeHtml(boardTileDisplay(tile))}</option>`).join("")}
+      </select>
+    </label>
+    <div class="board-art-options">
+      ${boardArtwork.map(([key, name]) => `
+        <button type="button" class="board-art-option ${boardTiles[selectedBoardImageTile]?.imageKey === key ? "selected" : ""}" data-action="choose-board-art" data-key="${key}" aria-label="Use ${name} artwork">
+          <img src="${boardArtworkSrc(key)}" alt="" loading="lazy"><span>${name}</span>
+        </button>`).join("")}
+    </div>
+    <small>Picking an illustration replaces that tile’s uploaded image. You can upload a different image in the tile settings below.</small>
+  </section>`;
 }
 
 function renderUsername(pin) {
@@ -973,7 +1228,7 @@ function renderLeaderboard(players, showRoundPoints = false, animateScores = fal
   return `<ol class="score-list" aria-label="Leaderboard">${rows}</ol>`;
 }
 
-function renderRoundSummary(players, animate = false) {
+function renderRoundSummary(players, animate = false, question = null) {
   const answered = players.filter(player => player.lastAnswerPoints !== null).length;
   const correct = players.filter(player => player.lastAnswerPoints > 0).length;
   const points = players.reduce((total, player) => total + (player.lastAnswerPoints || 0), 0);
@@ -981,7 +1236,41 @@ function renderRoundSummary(players, animate = false) {
     <div><strong>${correct}</strong><span>correct</span></div>
     <div><strong>${answered}/${players.length}</strong><span>answered</span></div>
     <div><strong>+${points.toLocaleString()}</strong><span>points this round</span></div>
-  </div><p class="scoring-note">Correct answers earn 500 points, plus up to 500 bonus points for speed.</p>`;
+  </div>    <p class="scoring-note">${question?.rarestAnswerScoring
+    ? "Typed answers award their authored point values; no speed bonus is added."
+    : "Correct answers earn 500 points, plus up to 500 bonus points for speed."}</p>`;
+}
+
+function renderTypedAnswerKey(question) {
+  const answers = question?.acceptedAnswers || [];
+  if (!answers.length) return "";
+  return `<section class="typed-answer-key" aria-label="Accepted answers">
+  <strong>${question.rarestAnswerScoring ? "Answer values" : "Accepted answers"}</strong>
+  <div>${answers.map((answer, index) => `<span><b>${escapeHtml(answer)}</b>${question.rarestAnswerScoring ? `<small>${Number(question.answerPoints?.[index] || 0)} pts</small>` : ""}</span>`).join("")}</div>
+  </section>`;
+}
+
+function renderDiceRoll(snapshot) {
+  const value = Number(snapshot.lastRoll);
+  if (!Number.isInteger(value) || value < 1 || value > 6) return "";
+  const pips = {
+  1: ["center"], 2: ["top-left", "bottom-right"],
+  3: ["top-left", "center", "bottom-right"],
+  4: ["top-left", "top-right", "bottom-left", "bottom-right"],
+  5: ["top-left", "top-right", "center", "bottom-left", "bottom-right"],
+  6: ["top-left", "top-right", "middle-left", "middle-right", "bottom-left", "bottom-right"]
+  };
+  const orientation = {
+  1: "rotateX(0deg) rotateY(0deg)", 2: "rotateX(0deg) rotateY(-90deg)",
+  3: "rotateX(-90deg) rotateY(0deg)", 4: "rotateX(90deg) rotateY(0deg)",
+  5: "rotateX(0deg) rotateY(90deg)", 6: "rotateX(0deg) rotateY(180deg)"
+  };
+  return `<div class="dice-roll-result ${Date.now() < diceAnimationUntil ? "dice-roll-animate" : ""}" role="img" aria-label="The die landed on ${value}">
+  <div class="dice-scene"><div class="dice-cube" style="--dice-final:${orientation[value]}">
+    ${[1, 2, 3, 4, 5, 6].map(face => `<div class="dice-face dice-face-${face}">${pips[face].map(pip => `<i class="dice-pip pip-${pip}"></i>`).join("")}</div>`).join("")}
+  </div></div>
+  <span><strong>${value}</strong><small>${snapshot.activePlayer ? `${escapeHtml(snapshot.activePlayer)} rolled` : "Last roll"}</small></span>
+  </div>`;
 }
 
 function renderSurveyResults(question, responses) {
@@ -1001,8 +1290,15 @@ function renderSurveyResults(question, responses) {
 
 function snapshotTransition(previous, snapshot, modeType) {
   if (!previous) return null;
-  if (snapshot.status === "Finished" && previous.status !== "Finished")
-    return { type: "finish" };
+  const rolled = (snapshot.rollSequence || 0) > (previous.rollSequence || 0);
+  if (snapshot.status === "Finished" && previous.status !== "Finished") {
+    if (rolled) diceAnimationUntil = Date.now() + 1800;
+    return { type: "finish", diceRoll: rolled };
+  }
+  if (rolled) {
+    diceAnimationUntil = Date.now() + 1800;
+    return { type: "dice-roll", diceRoll: true };
+  }
   if (JSON.stringify(snapshot.boardPositions) !== JSON.stringify(previous.boardPositions))
     return { type: "board-move" };
   if (snapshot.questionNumber !== previous.questionNumber)
@@ -1034,7 +1330,7 @@ function renderBoardTrack(snapshot, animateMove = false) {
     const playersHere = positions.filter(player => player.position === index);
     const currentTile = snapshot.activePlayer &&
       playersHere.some(player => player.username.toLocaleLowerCase() === snapshot.activePlayer.toLocaleLowerCase());
-    const image = safeBoardImageSrc(tile.imageDataUrl);
+    const image = boardTileImageSrc(tile);
     return `<div class="live-board-tile-wrap" style="${placement}">
       <div class="live-board-tile ${boardTileClass(tile.action)} ${index === 0 ? "live-board-start" : ""} ${currentTile ? "live-board-current" : ""}">
         <span class="live-board-index">${index === 0 ? "START" : index + 1 === tiles.length ? "FINISH" : index + 1}</span>
@@ -1122,7 +1418,8 @@ function renderHost(snapshot, transition) {
         </div>
       ` : finished ? `
         <div class="game-panel">
-          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, transition?.type === "board-move") : ""}
+          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, Boolean(transition?.diceRoll || transition?.type === "board-move")) : ""}
+          ${snapshot.boardEnabled ? renderDiceRoll(snapshot) : ""}
           ${renderWinnerAnnouncement(players, null, transition?.type === "finish", snapshot.winnerUsername)}
           <h2 class="leaderboard-heading">Final leaderboard</h2>
           ${scoreList}
@@ -1130,14 +1427,16 @@ function renderHost(snapshot, transition) {
         </div>
       ` : wheel ? `
         <div class="game-panel">
-          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, transition?.type === "board-move") : ""}
+          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, Boolean(transition?.diceRoll || transition?.type === "board-move")) : ""}
+          ${snapshot.boardEnabled ? renderDiceRoll(snapshot) : ""}
           ${renderWheel(snapshot, true)}
           ${snapshot.boardEnabled ? `<p class="board-active-player">Current player: <strong>${escapeHtml(snapshot.activePlayer || "")}</strong></p>` : ""}
           <div class="aside-divider"></div><h3 class="leaderboard-heading">Live leaderboard</h3>${scoreList}
         </div>
       ` : boardTurn || boardAction ? `
         <div class="game-panel">
-          ${renderBoardTrack(snapshot, transition?.type === "board-move")}
+          ${renderBoardTrack(snapshot, Boolean(transition?.diceRoll || transition?.type === "board-move"))}
+          ${renderDiceRoll(snapshot)}
           <section class="board-turn-panel ${boardAction ? "board-custom-action" : ""}">
             <p class="card-kicker">${boardAction ? "CUSTOM TILE" : "BOARD TURN"}</p>
             <h2>${boardAction ? "A host prompt is waiting" : `It’s ${escapeHtml(snapshot.activePlayer || "the next player")}’s turn`}</h2>
@@ -1148,21 +1447,22 @@ function renderHost(snapshot, transition) {
         </div>
       ` : `
         <div class="game-panel">
-          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, transition?.type === "board-move") : ""}
+          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, Boolean(transition?.diceRoll || transition?.type === "board-move")) : ""}
+          ${snapshot.boardEnabled ? renderDiceRoll(snapshot) : ""}
           ${snapshot.boardEnabled && snapshot.tileMessage ? `<p class="board-active-player">${escapeHtml(snapshot.tileMessage)}</p>` : ""}
           <div class="game-meta"><span>${snapshot.status === "Reveal" ? "ANSWER REVEAL" : "QUESTION " + snapshot.questionNumber + " OF " + snapshot.questionCount}</span><strong class="question-clock">${snapshot.status === "Question" ? secondsLeft(snapshot.endsAtUtc) + " sec" : snapshot.playerCount + " playing"}</strong></div>
           <div class="timer-track"><div class="timer-fill" style="width:${timerPercent(snapshot)}%"></div></div>
           ${snapshot.activeSubject ? `<div class="question-subject-pill">✦ ${escapeHtml(snapshot.activeSubject)}</div>` : ""}
           <h2 class="game-question ${transition?.type === "question" ? "question-enter" : ""}">${escapeHtml(snapshot.currentQuestion?.prompt)}</h2>
           ${questionType === "TypeAnswer"
-            ? `<div class="host-question-note">Players type their answer. Accepted spellings count as correct.</div>`
+            ? `<div class="host-question-note">Players type their answer. Accepted spellings count as correct.${snapshot.currentQuestion?.rarestAnswerScoring ? " Rarest Answer Wins values are revealed after the timer." : ""}</div>`
             : `<div class="answer-grid">${(snapshot.currentQuestion?.options || []).map((option, index) => `<div class="answer-card ${snapshot.status === "Reveal" && questionType === "MultipleChoice" ? (index === snapshot.correctOptionIndex ? "is-correct" : "is-wrong") : ""}"><span class="answer-symbol">${letters[index]}</span><span>${escapeHtml(option)}</span></div>`).join("")}</div>`}
           ${snapshot.status === "Reveal"
             ? questionType === "Survey"
               ? renderSurveyResults(snapshot.currentQuestion, snapshot.surveyResponses)
-              : `${renderRoundSummary(players, transition?.type === "reveal")}${questionType === "MultipleChoice"
+              : `${renderRoundSummary(players, transition?.type === "reveal", snapshot.currentQuestion)}${questionType === "MultipleChoice"
                 ? `<div class="reveal-banner">Correct answer: <strong>${escapeHtml(snapshot.currentQuestion?.options[snapshot.correctOptionIndex] || "")}</strong></div>`
-                : `<div class="reveal-banner">Accepted answers include: <strong>${escapeHtml(snapshot.currentQuestion?.acceptedAnswers?.join(", ") || "the answer key")}</strong></div>`}`
+                : renderTypedAnswerKey(snapshot.currentQuestion)}`
             : `<p class="answer-status">${players.filter(player => player.lastAnswerPoints !== null).length} of ${snapshot.playerCount} answered${questionType === "Survey" ? " · survey answers are not scored" : ""}</p>`}
           ${snapshot.status === "Reveal" ? `<div style="display:flex;justify-content:center;margin:20px 0 27px"><button class="primary-btn" data-action="next">${snapshot.boardEnabled ? "Continue turn" : snapshot.questionNumber >= snapshot.questionCount ? "See final scores" : "Next question"} <span aria-hidden="true">→</span></button></div>` : ""}
           <div class="aside-divider"></div><h3 class="leaderboard-heading">${snapshot.status === "Reveal" ? "Updated leaderboard" : "Live leaderboard"}</h3>${scoreList}
@@ -1186,6 +1486,9 @@ function renderPlayer(snapshot, transition) {
   const isActiveBoardPlayer = !snapshot.boardEnabled ||
     snapshot.activePlayer?.toLocaleLowerCase() === player.username.toLocaleLowerCase();
   const questionType = snapshot.currentQuestion?.type || "MultipleChoice";
+  const answerCorrect = questionType === "MultipleChoice"
+    ? snapshot.myAnswerIndex === snapshot.correctOptionIndex
+    : questionType === "TypeAnswer" && (playerScore?.lastAnswerPoints || 0) > 0;
   const hasSubmittedAnswer = snapshot.myAnswerIndex !== null || snapshot.myAnswerText !== null;
   const scoreList = renderLeaderboard(
     players,
@@ -1204,20 +1507,23 @@ function renderPlayer(snapshot, transition) {
         </div>
       ` : finished ? `
         <div class="game-panel">
-          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, transition?.type === "board-move") : ""}
+          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, Boolean(transition?.diceRoll || transition?.type === "board-move")) : ""}
+          ${snapshot.boardEnabled ? renderDiceRoll(snapshot) : ""}
           ${renderWinnerAnnouncement(players, player.username, transition?.type === "finish", snapshot.winnerUsername)}
           <h2 class="leaderboard-heading">Final leaderboard</h2>${scoreList}
           <div style="display:flex;justify-content:center;margin-top:24px"><button class="secondary-btn" data-action="leave">Back to Paradox</button></div>
         </div>
       ` : wheel ? `
         <div class="game-panel">
-          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, transition?.type === "board-move") : ""}
+          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, Boolean(transition?.diceRoll || transition?.type === "board-move")) : ""}
+          ${snapshot.boardEnabled ? renderDiceRoll(snapshot) : ""}
           ${renderWheel(snapshot, false)}
           ${snapshot.boardEnabled ? `<p class="board-active-player">Current player: <strong>${escapeHtml(snapshot.activePlayer || "")}</strong></p>` : ""}
         </div>
       ` : boardTurn ? `
         <div class="game-panel">
-          ${renderBoardTrack(snapshot, transition?.type === "board-move")}
+          ${renderBoardTrack(snapshot, Boolean(transition?.diceRoll || transition?.type === "board-move"))}
+          ${renderDiceRoll(snapshot)}
           <section class="board-turn-panel">
             <p class="card-kicker">BOARD TURN</p>
             ${isActiveBoardPlayer
@@ -1228,7 +1534,8 @@ function renderPlayer(snapshot, transition) {
         </div>
       ` : boardAction ? `
         <div class="game-panel">
-          ${renderBoardTrack(snapshot, transition?.type === "board-move")}
+          ${renderBoardTrack(snapshot, Boolean(transition?.diceRoll || transition?.type === "board-move"))}
+          ${renderDiceRoll(snapshot)}
           <section class="board-turn-panel board-custom-action">
             <p class="card-kicker">CUSTOM TILE</p>
             <h2>${isActiveBoardPlayer ? "Your host has a prompt for you" : `${escapeHtml(snapshot.activePlayer || "A player")} landed on a custom tile`}</h2>
@@ -1239,7 +1546,8 @@ function renderPlayer(snapshot, transition) {
         </div>
       ` : `
         <div class="game-panel">
-          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, transition?.type === "board-move") : ""}
+          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, Boolean(transition?.diceRoll || transition?.type === "board-move")) : ""}
+          ${snapshot.boardEnabled ? renderDiceRoll(snapshot) : ""}
           ${snapshot.boardEnabled && snapshot.tileMessage ? `<p class="board-active-player">${escapeHtml(snapshot.tileMessage)}</p>` : ""}
           ${snapshot.boardEnabled && snapshot.status === "Question" && !isActiveBoardPlayer
             ? `<section class="board-turn-panel"><p class="card-kicker">BOARD QUESTION</p><h2>${escapeHtml(snapshot.activePlayer || "The active player")} is answering</h2><p>Only the player whose turn it is can answer this question.</p></section>`
@@ -1264,10 +1572,11 @@ function renderPlayer(snapshot, transition) {
               const wrong = snapshot.status === "Reveal" && questionType === "MultipleChoice" && selected && !correct;
               return `<button class="answer-card ${selected ? "selected" : ""} ${selected && transition?.type === "answer" ? "answer-submit-enter" : ""} ${correct ? "is-correct" : ""} ${wrong ? "is-wrong" : ""}" data-action="answer" data-index="${index}" ${snapshot.status !== "Question" || hasSubmittedAnswer ? "disabled" : ""}><span class="answer-symbol">${correct ? "✓" : wrong ? "×" : letters[index]}</span><span>${escapeHtml(option)}</span>${selected && snapshot.status === "Question" ? `<span class="answer-locked-label">LOCKED IN</span>` : ""}</button>`;
             }).join("")}</div>`}
+          ${snapshot.status === "Reveal" && questionType === "TypeAnswer" ? renderTypedAnswerKey(snapshot.currentQuestion) : ""}
           ${snapshot.status === "Reveal" && questionType === "Survey"
             ? `<div class="survey-player-result" role="status"><strong>${snapshot.myAnswerIndex !== null ? "Thanks for sharing!" : "Time’s up!"}</strong><span>${snapshot.myAnswerIndex !== null ? `Your response was recorded: ${escapeHtml(snapshot.currentQuestion?.options[snapshot.myAnswerIndex] || "")}.` : "No response was recorded before the timer ended."} Survey answers don't affect scores.</span></div>`
             : snapshot.status === "Reveal"
-            ? `<div class="answer-result ${snapshot.myAnswerIndex === snapshot.correctOptionIndex ? "answer-result-correct" : "answer-result-wrong"} ${transition?.type === "reveal" ? "answer-result-enter" : ""}" role="status">
+            ? `<div class="answer-result ${answerCorrect ? "answer-result-correct" : "answer-result-wrong"} ${transition?.type === "reveal" ? "answer-result-enter" : ""}" role="status">
                 <span class="answer-result-icon" aria-hidden="true">${questionType === "MultipleChoice" ? snapshot.myAnswerIndex === snapshot.correctOptionIndex ? "✓" : snapshot.myAnswerIndex === null ? "…" : "×" : (playerScore?.lastAnswerPoints || 0) > 0 ? "✓" : snapshot.myAnswerText === null ? "…" : "×"}</span>
                 <span class="answer-result-copy"><strong>${questionType === "MultipleChoice"
                   ? snapshot.myAnswerIndex === null ? "Time's up!" : snapshot.myAnswerIndex === snapshot.correctOptionIndex ? "Brilliant answer!" : "Not this time"
@@ -1279,7 +1588,7 @@ function renderPlayer(snapshot, transition) {
             : hasSubmittedAnswer
               ? `<div class="answer-submitted ${transition?.type === "answer" ? "answer-submitted-enter" : ""}" role="status"><span class="answer-submitted-icon" aria-hidden="true">✓</span><span><strong>${questionType === "Survey" ? "Response recorded!" : "Answer locked in!"}</strong><small>${questionType === "Survey" ? "Thanks! Your response will be included in the survey results." : "Nice and quick. Your result is revealed when the timer ends."}</small></span><span class="answer-submitted-dots" aria-hidden="true"><i></i><i></i><i></i></span></div>`
               : `<p class="answer-status">Choose your answer before the timer runs out.</p>`}
-          ${snapshot.status === "Reveal" && questionType !== "Survey" ? renderRoundSummary(players, transition?.type === "reveal") : ""}
+          ${snapshot.status === "Reveal" && questionType !== "Survey" ? renderRoundSummary(players, transition?.type === "reveal", snapshot.currentQuestion) : ""}
           ${snapshot.status === "Reveal" ? `<h3 class="leaderboard-heading">Leaderboard</h3>${scoreList}` : ""}
           `}
         </div>
@@ -1327,6 +1636,7 @@ function snapshotSignature(snapshot) {
     snapshot.activeSubject,
     snapshot.activePlayer,
     snapshot.lastRoll,
+    snapshot.rollSequence,
     snapshot.boardPositions,
     snapshot.boardTitle,
     snapshot.boardLayout,
@@ -1428,6 +1738,10 @@ document.addEventListener("click", async event => {
     document.getElementById("game-pin")?.focus();
     return;
   }
+  if (action === "use-template") {
+    startFromTemplate(actionButton.dataset.template);
+    return;
+  }
   if (action === "copy-invite") {
     try {
       await navigator.clipboard.writeText(window.location.origin);
@@ -1500,7 +1814,7 @@ document.addEventListener("click", async event => {
     syncQuestionsFromForm();
     syncBuilderSettingsFromForm();
     if (boardTiles.length >= 40) return notify("A board can have up to 40 tiles.");
-    boardTiles.push({ action: "Question", amount: 100, subject: "", prompt: "" });
+    boardTiles.push({ action: "Question", amount: 100, subject: "", prompt: "", label: "", imageDataUrl: "", imageKey: "" });
     renderModeSettings();
     return;
   }
@@ -1508,14 +1822,29 @@ document.addEventListener("click", async event => {
     syncQuestionsFromForm();
     syncBuilderSettingsFromForm();
     if (boardTiles.length <= 3) return notify("A board needs at least 3 tiles.");
-    boardTiles.splice(Number(actionButton.dataset.index), 1);
+    const removedIndex = Number(actionButton.dataset.index);
+    boardTiles.splice(removedIndex, 1);
+    if (selectedBoardImageTile >= boardTiles.length) selectedBoardImageTile = boardTiles.length - 1;
+    else if (selectedBoardImageTile > removedIndex) selectedBoardImageTile--;
+    renderModeSettings();
+    return;
+  }
+  if (action === "choose-board-art") {
+    syncQuestionsFromForm();
+    syncBuilderSettingsFromForm();
+    const tile = boardTiles[selectedBoardImageTile];
+    if (!tile) return notify("Choose a board tile for the illustration.");
+    tile.imageKey = actionButton.dataset.key;
+    tile.imageDataUrl = "";
     renderModeSettings();
     return;
   }
   if (action === "remove-board-image") {
     syncQuestionsFromForm();
     syncBuilderSettingsFromForm();
-    boardTiles[Number(actionButton.dataset.index)].imageDataUrl = "";
+    const tile = boardTiles[Number(actionButton.dataset.index)];
+    tile.imageDataUrl = "";
+    tile.imageKey = "";
     renderModeSettings();
     return;
   }
@@ -1535,7 +1864,10 @@ document.addEventListener("click", async event => {
   if (action === "add-accepted-answer") {
     syncQuestionsFromForm();
     const question = questions[Number(actionButton.dataset.index)];
-    if (question.acceptedAnswers.length < 10) question.acceptedAnswers.push("");
+    if (question.acceptedAnswers.length < 10) {
+      question.acceptedAnswers.push("");
+      question.answerPoints.push(10);
+    }
     drawQuestionCards();
     document.querySelector(`[data-question="${actionButton.dataset.index}"] .accepted-answer-row:last-child .accepted-answer-field`)?.focus();
     return;
@@ -1543,7 +1875,9 @@ document.addEventListener("click", async event => {
   if (action === "remove-accepted-answer") {
     syncQuestionsFromForm();
     const question = questions[Number(actionButton.dataset.index)];
-    question.acceptedAnswers.splice(Number(actionButton.dataset.answerIndex), 1);
+    const answerIndex = Number(actionButton.dataset.answerIndex);
+    question.acceptedAnswers.splice(answerIndex, 1);
+    question.answerPoints.splice(answerIndex, 1);
     drawQuestionCards();
     return;
   }
@@ -1694,6 +2028,13 @@ document.addEventListener("change", async event => {
     syncQuestionsFromForm();
     drawQuestionCards();
   }
+  if (event.target.matches(".rarest-answer-toggle")) {
+    syncQuestionsFromForm();
+    const question = questions[Number(event.target.closest(".question-editor").dataset.question)];
+    if (question.rarestAnswerScoring)
+      question.answerPoints = question.acceptedAnswers.map((_, index) => question.answerPoints[index] || 10);
+    drawQuestionCards();
+  }
   if (event.target.id === "subject-wheel-toggle") {
     subjectWheelEnabled = event.target.checked;
     syncBuilderSettingsFromForm();
@@ -1716,6 +2057,12 @@ document.addEventListener("change", async event => {
     syncBuilderSettingsFromForm();
     renderModeSettings();
   }
+  if (event.target.id === "board-image-target") {
+    syncQuestionsFromForm();
+    syncBuilderSettingsFromForm();
+    selectedBoardImageTile = Number(event.target.value);
+    renderModeSettings();
+  }
   if (event.target.matches(".board-tile-image")) {
     const tileIndex = Number(event.target.closest(".board-tile-editor").dataset.tile);
     const file = event.target.files?.[0];
@@ -1728,6 +2075,7 @@ document.addEventListener("change", async event => {
       if (totalImageLength - currentImageLength + imageDataUrl.length > 400000)
         throw new Error("Board artwork is limited to 400 KB total. Remove an image or use smaller pictures.");
       boardTiles[tileIndex].imageDataUrl = imageDataUrl;
+      boardTiles[tileIndex].imageKey = "";
       renderModeSettings();
       notify("Tile artwork compressed and added.");
     } catch (error) {

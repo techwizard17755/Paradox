@@ -53,6 +53,8 @@ internal sealed class GameService : IGameService
                 return (null, "Every question needs a prompt.");
             if (!Enum.IsDefined(question.Type))
                 return (null, "Choose a supported question type.");
+            if (question.RarestAnswerScoring && question.Type != QuestionType.TypeAnswer)
+                return (null, "Rarest-answer scoring is only available for type-answer questions.");
             if ((question.Subject?.Trim().Length ?? 0) > 40)
                 return (null, "Question subjects must be 40 characters or fewer.");
             if (question.Type is QuestionType.MultipleChoice or QuestionType.Survey)
@@ -71,6 +73,15 @@ internal sealed class GameService : IGameService
                     return (null, "Type-answer questions need between 1 and 10 accepted answers.");
                 if (question.AcceptedAnswers.Any(answer => string.IsNullOrWhiteSpace(answer) || answer.Trim().Length > 100))
                     return (null, "Accepted answers must contain between 1 and 100 characters.");
+                if (question.RarestAnswerScoring &&
+                    (question.AnswerPoints is null ||
+                     question.AnswerPoints.Count != question.AcceptedAnswers.Count ||
+                     question.AnswerPoints.Any(points => points is < 1 or > 1000)))
+                    return (null, "Rarest-answer questions need one point value from 1 to 1,000 for each accepted answer.");
+                if (question.RarestAnswerScoring &&
+                    question.AcceptedAnswers.Select(answer => answer.Trim())
+                        .Distinct(StringComparer.OrdinalIgnoreCase).Count() != question.AcceptedAnswers.Count)
+                    return (null, "Rarest-answer choices must be unique, ignoring capitalization.");
             }
             if (question.TimeLimitSeconds is < 5 or > 60)
                 return (null, "Question timers must be between 5 and 60 seconds.");
@@ -99,8 +110,13 @@ internal sealed class GameService : IGameService
                 AcceptedAnswers = question.Type == QuestionType.TypeAnswer
                     ? question.AcceptedAnswers
                     .Select(answer => answer.Trim())
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Distinct(question.RarestAnswerScoring
+                        ? StringComparer.Ordinal
+                        : StringComparer.OrdinalIgnoreCase)
                     .ToList()
+                    : [],
+                AnswerPoints = question.Type == QuestionType.TypeAnswer && question.RarestAnswerScoring
+                    ? question.AnswerPoints.ToList()
                     : []
             })
             .ToArray();
@@ -251,18 +267,28 @@ internal sealed class GameService : IGameService
                 return Conflict("You have already answered this question.");
 
             player.Answers[game.CurrentRoundNumber] = new PlayerAnswer(optionIndex, answerText);
+            var typedAnswerIndex = question.Type == QuestionType.TypeAnswer
+                ? question.AcceptedAnswers.FindIndex(accepted =>
+                    string.Equals(accepted, answerText, StringComparison.OrdinalIgnoreCase))
+                : -1;
             var isCorrect = question.Type switch
             {
                 QuestionType.Survey => false,
                 QuestionType.MultipleChoice => optionIndex == question.CorrectOptionIndex,
-                QuestionType.TypeAnswer => question.AcceptedAnswers.Any(accepted =>
-                    string.Equals(accepted, answerText, StringComparison.OrdinalIgnoreCase)),
+                QuestionType.TypeAnswer => typedAnswerIndex >= 0,
                 _ => false
             };
             if (isCorrect)
             {
-                var remaining = Math.Max(0, (game.EndsAtUtc!.Value - DateTimeOffset.UtcNow).TotalSeconds);
-                player.LastAnswerPoints = 500 + (int)Math.Round(500 * remaining / question.TimeLimitSeconds);
+                if (question.Type == QuestionType.TypeAnswer && question.RarestAnswerScoring)
+                {
+                    player.LastAnswerPoints = question.AnswerPoints[typedAnswerIndex];
+                }
+                else
+                {
+                    var remaining = Math.Max(0, (game.EndsAtUtc!.Value - DateTimeOffset.UtcNow).TotalSeconds);
+                    player.LastAnswerPoints = 500 + (int)Math.Round(500 * remaining / question.TimeLimitSeconds);
+                }
                 player.Score += player.LastAnswerPoints.Value;
             }
             else
@@ -273,6 +299,12 @@ internal sealed class GameService : IGameService
             game.LeaderboardDirty = true;
             if (game.BoardEnabled)
             {
+                if (question.Type != QuestionType.Survey && !isCorrect)
+                {
+                    player.Position = player.PositionBeforeRoll;
+                    game.FinishAfterTurn = false;
+                    game.TileMessage = $"{player.Username} got the answer wrong and moved back to tile {player.Position + 1}.";
+                }
                 game.Status = GameStatus.Reveal;
                 game.EndsAtUtc = null;
             }
@@ -388,6 +420,8 @@ internal sealed class GameService : IGameService
 
             var roll = RandomNumberGenerator.GetInt32(1, 7);
             game.LastRoll = roll;
+            game.RollSequence++;
+            player.PositionBeforeRoll = player.Position;
             player.Position = Math.Min(game.BoardTiles.Count - 1, player.Position + roll);
             game.TileMessage = $"{player.Username} rolled {roll}.";
             ResolveBoardTile(game, player, 0);
@@ -657,7 +691,12 @@ internal sealed class GameService : IGameService
                     (game.Status is GameStatus.Reveal or GameStatus.Finished)
                     ? question.AcceptedAnswers
                     : [],
-                question.Subject),
+                question.Subject,
+                question.Type == QuestionType.TypeAnswer &&
+                    (game.Status is GameStatus.Reveal or GameStatus.Finished)
+                    ? question.AnswerPoints
+                    : [],
+                question.Type == QuestionType.TypeAnswer && question.RarestAnswerScoring),
             game.CurrentRoundNumber,
             game.Questions.Count,
             game.EndsAtUtc,
@@ -685,7 +724,8 @@ internal sealed class GameService : IGameService
             game.WinnerUsername,
             game.BoardTitle,
             game.BoardLayout,
-            game.BoardStyle);
+            game.BoardStyle,
+            game.RollSequence);
     }
 
     private static GameActionResult Success(Game game, string? playerId = null) =>
@@ -749,6 +789,7 @@ internal sealed class GameService : IGameService
         public bool WheelForBoardTurn { get; set; }
         public string? WheelSubjectConstraint { get; set; }
         public int? LastRoll { get; set; }
+        public int RollSequence { get; set; }
         public bool FinishAfterTurn { get; set; }
         public string? TileMessage { get; set; }
         public string? WinnerUsername { get; set; }
@@ -762,6 +803,7 @@ internal sealed class GameService : IGameService
         public int Score { get; set; }
         public int? LastAnswerPoints { get; set; }
         public int Position { get; set; }
+        public int PositionBeforeRoll { get; set; }
         public bool SkipNextTurn { get; set; }
         public Dictionary<int, PlayerAnswer> Answers { get; } = [];
     }

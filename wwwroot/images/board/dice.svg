@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90">
+  <defs><linearGradient id="cube" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff"/><stop offset="1" stop-color="#c8b7ff"/></linearGradient></defs>
+  <g transform="rotate(-12 60 45)"><rect x="28" y="13" width="64" height="64" rx="14" fill="url(#cube)" stroke="#fff" stroke-width="3"/>
+    <g fill="#4a347b"><circle cx="44" cy="29" r="5"/><circle cx="76" cy="29" r="5"/><circle cx="60" cy="45" r="5"/><circle cx="44" cy="61" r="5"/><circle cx="76" cy="61" r="5"/></g>
+  </g>
+  <path d="M17 25 22 17m77 53 5-7" stroke="#d3ff72" stroke-width="3" stroke-linecap="round"/>
+</svg>

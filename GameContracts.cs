@@ -25,6 +25,12 @@ public sealed record QuizQuestionRequest
     /// <summary>Accepted text answers for type-answer questions.</summary>
     public List<string> AcceptedAnswers { get; init; } = [];
 
+    /// <summary>Whether accepted type answers award their configured point values instead of speed points.</summary>
+    public bool RarestAnswerScoring { get; init; }
+
+    /// <summary>Points awarded for each accepted answer, in the same order as AcceptedAnswers.</summary>
+    public List<int> AnswerPoints { get; init; } = [];
+
     /// <summary>Time allowed for answers, between 5 and 60 seconds.</summary>
     [Range(5, 60)]
     public int TimeLimitSeconds { get; init; } = 20;
@@ -117,6 +123,10 @@ public sealed record BoardTileRequest
     /// <summary>Optional compressed raster image represented as a data URL.</summary>
     [StringLength(80000)]
     public string ImageDataUrl { get; init; } = "";
+
+    /// <summary>Optional key for a built-in board illustration.</summary>
+    [StringLength(24)]
+    public string ImageKey { get; init; } = "";
 }
 
 /// <summary>Optional subject selected by the host; omit it to spin randomly.</summary>
@@ -143,7 +153,9 @@ public sealed record QuestionResponse(
     IReadOnlyList<string> Options,
     int TimeLimitSeconds,
     IReadOnlyList<string> AcceptedAnswers,
-    string Subject);
+    string Subject,
+    IReadOnlyList<int>? AnswerPoints = null,
+    bool RarestAnswerScoring = false);
 
 /// <summary>A named response to a survey question.</summary>
 public sealed record SurveyResponse(string Username, int? OptionIndex, string? AnswerText);
@@ -181,7 +193,19 @@ public sealed record GameSnapshotResponse(
     string? WinnerUsername = null,
     string BoardTitle = "The Showdown",
     BoardLayout BoardLayout = BoardLayout.Track,
-    BoardStyle BoardStyle = BoardStyle.Aurora);
+    BoardStyle BoardStyle = BoardStyle.Aurora,
+    int RollSequence = 0);
+
+internal static class BoardArtworkLibrary
+{
+    private static readonly HashSet<string> SupportedKeys = new(StringComparer.Ordinal)
+    {
+        "comet", "crown", "crystal", "dice", "flame", "planet", "rocket", "treasure"
+    };
+
+    public static bool IsSupported(string? key) =>
+        string.IsNullOrEmpty(key) || SupportedKeys.Contains(key);
+}
 
 /// <summary>Show creation mode.</summary>
 public enum ShowMode
@@ -314,6 +338,9 @@ internal static class ShowConfigurationValidator
                 return "Board tile labels, subjects, and prompts are too long.";
             if (!IsValidImageDataUrl(tile.ImageDataUrl))
                 return "Board images must be compressed PNG, JPEG, or WebP images.";
+            if (!BoardArtworkLibrary.IsSupported(tile.ImageKey) ||
+                !string.IsNullOrEmpty(tile.ImageKey) && !string.IsNullOrEmpty(tile.ImageDataUrl))
+                return "Choose one supported built-in illustration or upload a board image.";
             imageDataLength += tile.ImageDataUrl?.Length ?? 0;
             if (imageDataLength > 400_000)
                 return "Board images are too large. Remove some images or use smaller pictures.";

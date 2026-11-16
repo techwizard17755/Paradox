@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90">
+  <defs><linearGradient id="gem" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#d3ff72"/><stop offset=".48" stop-color="#66e4d1"/><stop offset="1" stop-color="#a98bff"/></linearGradient></defs>
+  <path d="m60 9 31 18-7 39-24 16-24-16-7-39z" fill="url(#gem)" stroke="#e9fff7" stroke-opacity=".8" stroke-width="2"/>
+  <path d="m29 27 31 7 31-7M36 66l24-32 24 32M60 9v25m0 48V34" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="2"/>
+  <circle cx="18" cy="69" r="3" fill="#d3ff72"/><circle cx="101" cy="19" r="3" fill="#ffb36b"/>
+</svg>

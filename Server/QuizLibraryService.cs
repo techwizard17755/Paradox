@@ -229,6 +229,8 @@ internal sealed class QuizLibraryService : IQuizLibraryService
                 return "Every question needs a prompt.";
             if (!Enum.IsDefined(question.Type) || question.TimeLimitSeconds is < 5 or > 60)
                 return "Check the question type and timer on each question.";
+            if (question.RarestAnswerScoring && question.Type != QuestionType.TypeAnswer)
+                return "Rarest-answer scoring is only available for type-answer questions.";
             if ((question.Subject?.Trim().Length ?? 0) > 40)
                 return "Question subjects must be 40 characters or fewer.";
             if (question.Type is QuestionType.MultipleChoice or QuestionType.Survey)
@@ -245,6 +247,15 @@ internal sealed class QuizLibraryService : IQuizLibraryService
                      question.AcceptedAnswers.Any(answer => string.IsNullOrWhiteSpace(answer) || answer.Trim().Length > 100))
             {
                 return "Type-answer questions need between 1 and 10 accepted answers, each 100 characters or fewer.";
+            }
+            else if (question.RarestAnswerScoring &&
+                     (question.AnswerPoints is null ||
+                      question.AnswerPoints.Count != question.AcceptedAnswers.Count ||
+                      question.AnswerPoints.Any(points => points is < 1 or > 1000) ||
+                      question.AcceptedAnswers.Select(answer => answer.Trim())
+                          .Distinct(StringComparer.OrdinalIgnoreCase).Count() != question.AcceptedAnswers.Count))
+            {
+                return "Check that every rare-answer choice has a unique answer and a point value from 1 to 1,000.";
             }
         }
         var modeError = ShowConfigurationValidator.Validate(
