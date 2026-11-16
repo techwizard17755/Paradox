@@ -1069,6 +1069,17 @@ body.v2-mode[data-page] .eyebrow-mark {
   animation-name: v2-sparkle-party;
 }
 
+body.v2-mode[data-page] .hero .eyebrow-mark {
+  display: inline-block;
+  width: auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  line-height: 1;
+}
+
 body.v2-mode[data-page] .hero h1 em {
   background-image: linear-gradient(100deg, #ffe878 3%, #ff86b8 38%, #a98dff 70%, #70edff 98%);
   background-size: 250% 100%;

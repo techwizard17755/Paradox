@@ -684,11 +684,9 @@ function renderJoin() {
         <div class="solar-orbit solar-orbit-four"><span class="solar-planet planet-gold"></span></div>
       </div>` : ""}
       <div class="hero-copy-block">
-        <p class="eyebrow"><span class="eyebrow-mark">✦</span> ${v2Experience ? "PARADOX V2 · THE SHOW STARTS HERE" : "A quiz night, reimagined"}</p>
-        <h1>${v2Experience ? "Make tonight.<br><em>Legendary.</em>" : "Think fast.<br><em>Have fun.</em>"}</h1>
-        <p class="hero-copy">${v2Experience
-          ? "Turn any room into a live game show. Bring your people, pick your format, and make the next question count."
-          : "Jump into a live quiz with your crew. Pick a nickname, bring your best guesses, and see who comes out on top."}</p>
+        <p class="eyebrow"><span class="eyebrow-mark">✦</span> A quiz night, reimagined</p>
+        <h1>Think fast.<br><em>Have fun.</em></h1>
+        <p class="hero-copy">Jump into a live quiz with your crew. Pick a nickname, bring your best guesses, and see who comes out on top.</p>
         <div class="hero-actions">
           <button class="primary-btn" data-action="focus-pin">Enter a game PIN <span aria-hidden="true">→</span></button>
           <a class="secondary-btn" href="/create" data-page="create" data-app-link>${v2Experience ? "Build a show ✦" : "Make your own ✦"}</a>
