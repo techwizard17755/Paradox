@@ -12,3 +12,7 @@ services:
         value: "10000"
       - key: PARADOX_DATA_DIR
         value: /tmp/paradox-data
+      - key: PARADOX_FAMILY_SHOW_KEY
+        sync: false
+      - key: PARADOX_FAMILY_SHOW_PHRASE
+        sync: false

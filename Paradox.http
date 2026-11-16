@@ -1,5 +1,6 @@
 @baseUrl = http://localhost:10000
 @quizKey = replace-with-private-key
+@privateTemplateKey = replace-with-private-template-key
 
 ### Create a quiz
 POST {{baseUrl}}/api/games
@@ -139,3 +140,16 @@ Content-Type: application/json
 ### Roll during the active player's board turn
 POST {{baseUrl}}/api/games/123456/board/roll
 X-Player-Id: replace-with-active-player-id
+
+### Load the private family template (uses Render-configured private settings)
+GET {{baseUrl}}/api/private/family-show
+X-Private-Template-Key: {{privateTemplateKey}}
+
+### Submit the current answer list during Smash the Answer
+POST {{baseUrl}}/api/games/123456/smash/answers
+X-Player-Id: replace-with-player-id
+Content-Type: application/json
+
+{
+  "answers": ["Apple", "Banana", "Orange"]
+}

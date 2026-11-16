@@ -146,6 +146,28 @@ internal static class GameEndpoints
         .ProducesProblem(StatusCodes.Status404NotFound)
         .ProducesProblem(StatusCodes.Status409Conflict);
 
+        app.MapPost("/api/games/{pin}/smash/answers", IResult (
+            string pin,
+            SubmitSmashAnswersRequest body,
+            HttpRequest request,
+            IGameService games,
+            CancellationToken cancellationToken) =>
+        {
+            _ = cancellationToken;
+            return ToHttpResult(games.SubmitSmashAnswers(
+                pin,
+                request.Headers["X-Player-Id"].FirstOrDefault() ?? string.Empty,
+                body.Answers));
+        })
+        .WithName("SubmitSmashAnswers")
+        .WithSummary("Submit answers during Smash the Answer")
+        .WithDescription("Replaces the player's current answer list during the 60-second round; accepted responses are scored when the host advances.")
+        .Produces<GameSnapshotResponse>()
+        .ProducesProblem(StatusCodes.Status400BadRequest)
+        .ProducesProblem(StatusCodes.Status401Unauthorized)
+        .ProducesProblem(StatusCodes.Status404NotFound)
+        .ProducesProblem(StatusCodes.Status409Conflict);
+
         app.MapPost("/api/games/{pin}/next", IResult (
             string pin,
             HttpRequest request,

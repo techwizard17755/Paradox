@@ -24,6 +24,7 @@ public static class ParadoxServices
     public static WebApplication MapParadoxGameEndpoints(this WebApplication app)
     {
         app.MapParadoxEndpoints();
+        FamilyShowTemplateEndpoints.Map(app);
         return app;
     }
 

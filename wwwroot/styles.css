@@ -1877,3 +1877,107 @@ body[data-page]:not([data-page="join"]) textarea:focus-visible,
 body[data-page]:not([data-page="join"]) select:focus-visible {
   outline-color: rgba(211,255,114,.8);
 }
+
+.private-template-banner,
+.private-template-error,
+.phrase-puzzle-editor,
+.phrase-progress-panel,
+.smash-round-panel {
+  border: 1px solid rgba(169,139,255,.2);
+  border-radius: 14px;
+  background: linear-gradient(145deg, rgba(42,34,62,.78), rgba(24,19,37,.82));
+}
+
+.private-template-banner {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 20px;
+  padding: 14px;
+}
+
+.private-template-banner > strong { color: #e8e1f4; font-size: 12px; }
+.private-template-banner .quiet-btn { width: fit-content; }
+
+.private-template-error {
+  max-width: 620px;
+  margin: 65px auto;
+  padding: 30px;
+  text-align: center;
+}
+
+.private-template-error h1 { margin: 10px 0; font: 700 28px "Space Grotesk", sans-serif; }
+.private-template-error p { margin: 0 auto 20px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+
+.phrase-puzzle-editor { display: grid; gap: 15px; margin: 17px 0; padding: 17px; }
+.phrase-puzzle-editor .mode-settings-heading { margin: 0; }
+.phrase-puzzle-fields { display: grid; gap: 12px; }
+.phrase-puzzle-fields > .field-label { display: grid; gap: 7px; }
+.phrase-puzzle-fields .mode-settings-note { margin: -4px 0 2px; }
+.smash-round-list { display: grid; gap: 10px; }
+.smash-round-editor { display: grid; gap: 10px; padding: 13px; border: 1px solid rgba(255,255,255,.09); border-radius: 11px; background: rgba(10,8,18,.25); }
+.smash-round-editor-heading { display: flex; align-items: center; justify-content: space-between; color: #e4dff0; font-size: 11px; }
+.smash-round-editor .field-label { display: grid; gap: 6px; }
+.smash-round-editor .field-label > span { color: var(--dim); font-size: 9px; font-weight: 500; }
+.smash-accepted-field { min-height: 75px; resize: vertical; }
+
+.phrase-progress-panel { margin: 0 0 18px; padding: 15px; }
+.phrase-progress-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 7px; margin-bottom: 10px; }
+.phrase-progress-heading > strong { color: #e8e1f4; font-size: 11px; }
+.phrase-bonus-clock { color: var(--lime); font-size: 9px; font-weight: 700; }
+.phrase-player-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 8px; }
+.phrase-player-progress { min-width: 0; padding: 10px; border: 1px solid rgba(255,255,255,.08); border-radius: 10px; background: rgba(12,9,22,.36); }
+.phrase-player-progress > strong { color: var(--muted); font-size: 10px; }
+.phrase-player-self { border-color: rgba(211,255,114,.35); box-shadow: inset 0 0 15px rgba(211,255,114,.035); }
+.phrase-player-self > strong { color: var(--lime); }
+.phrase-mask { margin: 7px 0 5px; color: #f3edff; font: 700 clamp(10px, 2.2vw, 16px) "Space Grotesk", sans-serif; letter-spacing: .12em; line-height: 1.75; overflow-wrap: anywhere; white-space: pre-wrap; }
+.phrase-player-progress > small { color: var(--dim); font-size: 9px; }
+
+.smash-round-panel { display: grid; justify-items: center; gap: 12px; padding: 22px; text-align: center; }
+.smash-round-panel h2 { margin: 0; font: 700 clamp(20px, 3.5vw, 28px) "Space Grotesk", sans-serif; }
+.smash-prompt { margin: 0; color: #e5dcff; font-size: clamp(16px, 2.5vw, 22px); font-weight: 700; }
+.smash-clock-row { width: 100%; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; color: var(--muted); font-size: 10px; }
+.smash-clock { color: var(--lime); font: 700 24px "Space Grotesk", sans-serif; }
+.smash-timer-fill { background: linear-gradient(90deg, var(--lime), var(--coral)); }
+.smash-scoreboard { width: 100%; display: grid; gap: 6px; margin: 5px 0; }
+.smash-scoreboard > div { display: flex; justify-content: space-between; padding: 8px 10px; border: 1px solid rgba(255,255,255,.07); border-radius: 8px; color: var(--muted); font-size: 10px; }
+.smash-scoreboard strong { color: var(--lime); }
+.smash-round-panel > .primary-btn { min-width: min(100%, 250px); }
+.smash-answer-form { width: 100%; display: grid; gap: 9px; text-align: left; }
+.smash-answer-form .field-label { display: grid; gap: 7px; }
+.smash-answer-form textarea { min-height: 128px; resize: vertical; }
+.smash-answer-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.smash-answer-actions > span,
+.smash-player-score { margin: 0; color: var(--dim); font-size: 10px; }
+
+.phrase-card-overlay { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; background: rgba(11,8,20,.48); pointer-events: none; }
+.phrase-card-stack { display: flex; flex-wrap: wrap; justify-content: center; gap: 18px; padding: 20px; }
+.phrase-reveal-card { position: relative; width: min(230px, 40vw); min-width: 160px; aspect-ratio: .72; transform-style: preserve-3d; animation: phrase-card-spin-reveal 3s cubic-bezier(.16,.78,.28,1) both; }
+.phrase-card-front,
+.phrase-card-back { position: absolute; inset: 0; display: grid; align-content: center; justify-items: center; gap: 14px; padding: 16px; border: 2px solid rgba(211,255,114,.68); border-radius: 20px; backface-visibility: hidden; box-shadow: 0 24px 80px rgba(0,0,0,.5), 0 0 34px rgba(169,139,255,.35); text-align: center; }
+.phrase-card-front { background: radial-gradient(circle at 50% 30%, rgba(169,139,255,.3), transparent 42%), linear-gradient(145deg, #332650, #171127); color: #f6f0ff; }
+.phrase-card-front > span,
+.phrase-card-back > span { color: var(--lime); font-size: 9px; font-weight: 800; letter-spacing: .16em; }
+.phrase-card-front > strong { display: grid; width: 76px; height: 76px; place-items: center; border: 1px solid rgba(211,255,114,.4); border-radius: 50%; background: rgba(211,255,114,.08); color: var(--lime); font: 700 42px "Space Grotesk", sans-serif; }
+.phrase-card-front > small,
+.phrase-card-back > small { color: #c4b9d8; font-size: 9px; }
+.phrase-card-back { transform: rotateY(180deg); background: radial-gradient(circle at 50% 20%, rgba(211,255,114,.18), transparent 45%), linear-gradient(145deg, #302844, #171127); }
+.phrase-card-back > strong { color: var(--lime); font: 700 76px "Space Grotesk", sans-serif; text-shadow: 0 0 30px rgba(211,255,114,.42); }
+@keyframes phrase-card-spin-reveal {
+  0% { opacity: 0; transform: perspective(900px) rotateY(-40deg) scale(.42) translateY(36px); }
+  12% { opacity: 1; transform: perspective(900px) rotateY(0) scale(1.05); }
+  47% { opacity: 1; transform: perspective(900px) rotateY(0) scale(1); }
+  58% { opacity: 1; transform: perspective(900px) rotateY(180deg) scale(1); }
+  82% { opacity: 1; transform: perspective(900px) rotateY(180deg) scale(1); }
+  100% { opacity: 0; transform: perspective(900px) rotateY(180deg) scale(.12) translateY(-45vh); }
+}
+
+@media (max-width: 600px) {
+  .phrase-puzzle-editor,
+  .phrase-progress-panel,
+  .smash-round-panel { padding: 13px; }
+  .phrase-progress-heading { align-items: flex-start; flex-direction: column; }
+  .phrase-mask { letter-spacing: .08em; }
+  .phrase-reveal-card { min-width: 140px; }
+  .smash-answer-actions { align-items: stretch; flex-direction: column; }
+  .smash-answer-actions .primary-btn { width: 100%; }
+}

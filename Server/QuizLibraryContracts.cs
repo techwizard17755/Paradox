@@ -39,6 +39,9 @@ public sealed record SaveQuizRequest
     /// <summary>Color treatment used to display the board.</summary>
     public BoardStyle BoardStyle { get; init; } = BoardStyle.Aurora;
 
+    /// <summary>Optional secret-phrase puzzle and timed answer-smash configuration.</summary>
+    public PhrasePuzzleRequest? PhrasePuzzle { get; init; }
+
     /// <summary>Questions to play in order.</summary>
     [Required, MinLength(1), MaxLength(30)]
     public required List<QuizQuestionRequest> Questions { get; init; }
@@ -74,6 +77,9 @@ public sealed record SavedQuizResponse(
 
     /// <summary>Color treatment used to display the board.</summary>
     public BoardStyle BoardStyle { get; init; } = BoardStyle.Aurora;
+
+    /// <summary>Optional secret-phrase puzzle and timed answer-smash configuration.</summary>
+    public PhrasePuzzleRequest? PhrasePuzzle { get; init; }
 }
 
 /// <summary>A newly saved quiz and its private management key.</summary>

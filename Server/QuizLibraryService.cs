@@ -223,6 +223,9 @@ internal sealed class QuizLibraryService : IQuizLibraryService
             return "The quiz description must be 280 characters or fewer.";
         if (!QuizThemes.IsSupported(request.Theme))
             return "Choose one of the available quiz themes.";
+        var phrasePuzzleError = PhrasePuzzleValidator.Validate(request.PhrasePuzzle);
+        if (phrasePuzzleError is not null)
+            return phrasePuzzleError;
         foreach (var question in request.Questions)
         {
             if (question is null || string.IsNullOrWhiteSpace(question.Prompt))
@@ -295,7 +298,8 @@ internal sealed class QuizLibraryService : IQuizLibraryService
             BoardTiles = settings.BoardTiles ?? [],
             BoardTitle = settings.BoardTitle,
             BoardLayout = settings.BoardLayout,
-            BoardStyle = settings.BoardStyle
+            BoardStyle = settings.BoardStyle,
+            PhrasePuzzle = settings.PhrasePuzzle
         };
     }
 
@@ -308,7 +312,8 @@ internal sealed class QuizLibraryService : IQuizLibraryService
             BoardTiles = ShowConfigurationValidator.HasBoard(request.Mode, request.BoardEnabled) ? request.BoardTiles ?? [] : [],
             BoardTitle = request.BoardTitle.Trim(),
             BoardLayout = request.BoardLayout,
-            BoardStyle = request.BoardStyle
+            BoardStyle = request.BoardStyle,
+            PhrasePuzzle = request.PhrasePuzzle
         };
 
     private static void AddQuizParameters(
@@ -333,7 +338,8 @@ internal sealed class QuizLibraryService : IQuizLibraryService
                 ShowConfigurationValidator.HasBoard(request.Mode, request.BoardEnabled) ? request.BoardTiles ?? [] : [],
                 request.BoardTitle.Trim(),
                 request.BoardLayout,
-                request.BoardStyle),
+                request.BoardStyle,
+                request.PhrasePuzzle),
             JsonOptions));
         command.Parameters.AddWithValue("$created_at", createdAt?.ToString("O") ?? (object)DBNull.Value);
         command.Parameters.AddWithValue("$updated_at", updatedAt.ToString("O"));
@@ -346,7 +352,8 @@ internal sealed class QuizLibraryService : IQuizLibraryService
         List<BoardTileRequest>? BoardTiles = null,
         string BoardTitle = "The Showdown",
         BoardLayout BoardLayout = BoardLayout.Track,
-        BoardStyle BoardStyle = BoardStyle.Aurora);
+        BoardStyle BoardStyle = BoardStyle.Aurora,
+        PhrasePuzzleRequest? PhrasePuzzle = null);
 
     private static string HashOwnerKey(string ownerKey) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(ownerKey)));

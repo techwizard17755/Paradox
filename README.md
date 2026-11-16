@@ -24,8 +24,17 @@ Deploy this repository as a Render Blueprint using `render.yaml`. Render builds 
 - In a board editor, choose one of eight built-in tile illustrations or upload your own image.
 - For any typed-answer question, enable **Rarest Answer Wins scoring** to assign 1–1,000 points to each accepted answer; those values are shown to players after the reveal.
 - Incorrect answers on board question spaces return the active player to the space they started their roll from. Timed-out questions do not move the player back.
+- Any show can enable **Reveal a secret phrase** for individual letter cards and optional 60-second Smash the Answer rounds.
 - Share the PIN with players so they can join from their own browsers.
 - **My quizzes** stores saved quizzes in the current browser on the current device. It does not sync across devices or browsers.
+
+## Private family show
+
+The family board template is not listed in the public template gallery. To enable its private link on Render, set `PARADOX_FAMILY_SHOW_KEY` to a random key of at least 32 characters and set `PARADOX_FAMILY_SHOW_PHRASE` to your chosen phrase in the Render dashboard. Do not commit either value or paste them into public issues or chat.
+
+Open `https://your-site.example/create/family-show#<your-key>` to edit or host the template. The key stays in the URL fragment and is sent only in a request header; the phrase is served only after the key is verified and is never included in public game snapshots. Anyone you share the link with can open and edit the template, so only share it with trusted people. Copy the complete invitation from the template page.
+
+Without both Render variables, the private template link remains unavailable. The reusable phrase and Smash the Answer settings in the normal show builder remain available.
 
 ## Repository file guide
 
@@ -36,6 +45,7 @@ Deploy this repository as a Render Blueprint using `render.yaml`. Render builds 
 | `GameContracts.cs` | Game, question, board, request, response, and validation types shared with the server. |
 | `GameEndpoints.cs` | HTTP endpoints for creating, joining, hosting, and playing live games. |
 | `GameService.cs` | Authoritative in-memory game state, turn flow, scoring, wheel, and board actions. |
+| `Server\FamilyShowTemplateEndpoints.cs` | Invite-key-protected family template endpoint and private template content. |
 | `wwwroot\index.html` | Browser page shell and root-relative CSS/JavaScript links. |
 | `wwwroot\app.js` | Browser application: navigation, quiz builder, templates, board/wheel studios, host/player views, and API calls. |
 | `wwwroot\images\board\` | Eight bundled SVG illustrations for board tiles. |

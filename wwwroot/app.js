@@ -20,6 +20,10 @@ let boardTitle = "The Showdown";
 let boardLayout = "Track";
 let boardStyle = "Aurora";
 let selectedBoardImageTile = 0;
+let phrasePuzzleConfig = null;
+let phrasePuzzleEnabled = false;
+let privateFamilyTemplate = false;
+let gameAudioContext = null;
 let toastTimer = null;
 let wheelAnimationUntil = 0;
 let pendingWheelResult = "";
@@ -53,6 +57,19 @@ function newQuestion() {
     answerPoints: [10],
     rarestAnswerScoring: false,
     timeLimitSeconds: 20
+  };
+}
+
+function defaultPhrasePuzzle() {
+  return {
+    phrase: "",
+    smashEnabled: true,
+    lapsBeforeSmash: 2,
+    smashRounds: [
+      { prompt: "Name as many fruits as you can!", acceptedAnswers: ["Apple", "Banana", "Orange", "Pear", "Peach", "Plum", "Grape", "Mango", "Lemon", "Lime"] },
+      { prompt: "Name as many countries as you can!", acceptedAnswers: ["Canada", "Mexico", "Brazil", "France", "Germany", "Spain", "Italy", "Japan", "India", "Australia"] },
+      { prompt: "Name as many animals as you can!", acceptedAnswers: ["Cat", "Dog", "Horse", "Cow", "Rabbit", "Fox", "Bear", "Elephant", "Penguin", "Dolphin"] }
+    ]
   };
 }
 
@@ -385,6 +402,31 @@ function notify(message) {
   toastTimer = setTimeout(() => toast.classList.remove("visible"), 3200);
 }
 
+function unlockGameAudio() {
+  if (!window.AudioContext) return;
+  gameAudioContext ||= new AudioContext();
+  if (gameAudioContext.state === "suspended") void gameAudioContext.resume();
+}
+
+function playPhraseCardSound() {
+  if (!gameAudioContext || gameAudioContext.state !== "running") return;
+  const startAt = gameAudioContext.currentTime;
+  [587, 784, 1047].forEach((frequency, index) => {
+    const oscillator = gameAudioContext.createOscillator();
+    const gain = gameAudioContext.createGain();
+    const noteStart = startAt + index * 0.1;
+    oscillator.type = "triangle";
+    oscillator.frequency.setValueAtTime(frequency, noteStart);
+    gain.gain.setValueAtTime(0.0001, noteStart);
+    gain.gain.exponentialRampToValueAtTime(0.11, noteStart + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.0001, noteStart + 0.32);
+    oscillator.connect(gain);
+    gain.connect(gameAudioContext.destination);
+    oscillator.start(noteStart);
+    oscillator.stop(noteStart + 0.33);
+  });
+}
+
 async function api(url, options = {}) {
   const response = await fetch(url, {
     ...options,
@@ -421,6 +463,7 @@ function routeFor(pathname = window.location.pathname) {
   const path = pathname.replace(/\/+$/, "").toLowerCase() || "/";
   if (path === "/" || path === "/join") return { page: "join" };
   if (path === "/create") return { page: "create" };
+  if (path === "/create/family-show") return { page: "family-template" };
   if (path === "/my-quizzes") return { page: "library" };
 
   const mode = path.match(/^\/create\/(board|quiz|custom)$/);
@@ -446,6 +489,7 @@ function renderRoute() {
   const route = routeFor();
   if (route.page === "join") return renderJoin();
   if (route.page === "create") return renderCreateChooser();
+  if (route.page === "family-template") return void loadPrivateFamilyTemplate();
   if (route.page === "builder") return renderBuilder(null, route.mode);
   if (route.page === "library") return void renderLibrary();
 
@@ -473,6 +517,54 @@ function resetBuilder() {
   boardTitle = "The Showdown";
   boardLayout = "Track";
   boardStyle = "Aurora";
+  phrasePuzzleConfig = null;
+  phrasePuzzleEnabled = false;
+  privateFamilyTemplate = false;
+}
+
+async function loadPrivateFamilyTemplate() {
+  stopPolling();
+  setTheme();
+  setNav("create");
+  const key = window.location.hash.slice(1);
+  if (!key) return renderPrivateTemplateError();
+
+  app.innerHTML = `<div class="library-empty">Opening your private family show…</div>`;
+  try {
+    const response = await api("/api/private/family-show", {
+      headers: { "X-Private-Template-Key": decodeURIComponent(key) }
+    });
+    if (routeFor().page !== "family-template") return;
+    const show = response.show;
+    questions = show.questions;
+    boardTiles = show.boardTiles;
+    boardEnabled = true;
+    subjectWheelEnabled = Boolean(show.subjectWheelEnabled);
+    currentTheme = show.theme;
+    showMode = show.mode;
+    boardTitle = show.boardTitle;
+    boardLayout = show.boardLayout;
+    boardStyle = show.boardStyle;
+    phrasePuzzleConfig = show.phrasePuzzle;
+    phrasePuzzleEnabled = Boolean(show.phrasePuzzle);
+    privateFamilyTemplate = true;
+    savedQuizId = null;
+    builderDraft = { ...show };
+    renderBuilder(show, show.mode);
+  } catch {
+    if (routeFor().page === "family-template") renderPrivateTemplateError();
+  }
+}
+
+function renderPrivateTemplateError() {
+  setNav("create");
+  app.innerHTML = `
+    <section class="private-template-error">
+      <span class="card-kicker">PRIVATE FAMILY SHOW</span>
+      <h1>This invitation is unavailable.</h1>
+      <p>Check that you have the complete private link and that its owner has enabled the template on the Paradox website.</p>
+      <a class="secondary-btn" href="/create" data-app-link>Back to Create</a>
+    </section>`;
 }
 
 function setTheme(theme = "violet") {
@@ -656,6 +748,9 @@ function startFromTemplate(templateId) {
     boardTitle = template.boardTitle || "The Showdown";
     boardLayout = board.layout;
     boardStyle = template.boardStyle || "Aurora";
+    phrasePuzzleConfig = template.phrasePuzzle ? structuredClone(template.phrasePuzzle) : null;
+    phrasePuzzleEnabled = Boolean(template.phrasePuzzle);
+    privateFamilyTemplate = false;
     selectedBoardImageTile = 0;
     savedQuizId = null;
     builderDraft = {
@@ -668,7 +763,8 @@ function startFromTemplate(templateId) {
       boardTiles,
       boardTitle,
       boardLayout,
-      boardStyle
+      boardStyle,
+      phrasePuzzle: phrasePuzzleConfig
     };
     navigateTo(modePath(template.mode));
 }
@@ -699,6 +795,27 @@ function syncQuestionsFromForm() {
 }
 
 function syncBuilderSettingsFromForm() {
+  const phraseToggle = document.getElementById("phrase-puzzle-toggle");
+  if (phraseToggle?.checked) {
+    phrasePuzzleEnabled = true;
+    const config = phrasePuzzleConfig || defaultPhrasePuzzle();
+    const rounds = [...document.querySelectorAll(".smash-round-editor")];
+    phrasePuzzleConfig = {
+      phrase: document.getElementById("phrase-puzzle-text")?.value.trim() || "",
+      smashEnabled: document.getElementById("smash-enabled-toggle")?.checked ?? config.smashEnabled,
+      lapsBeforeSmash: Number(document.getElementById("smash-laps")?.value || config.lapsBeforeSmash),
+      smashRounds: rounds.length
+        ? rounds.map(round => ({
+          prompt: round.querySelector(".smash-prompt-field").value.trim(),
+          acceptedAnswers: round.querySelector(".smash-accepted-field").value
+            .split(/[\n,]/).map(answer => answer.trim()).filter(Boolean)
+        }))
+        : config.smashRounds
+    };
+  } else if (phraseToggle) {
+    phrasePuzzleEnabled = false;
+  }
+
   const wheelToggle = document.getElementById("subject-wheel-toggle");
   if (wheelToggle) subjectWheelEnabled = wheelToggle.checked;
   const boardToggle = document.getElementById("custom-board-toggle");
@@ -730,10 +847,21 @@ function renderBuilder(quiz = null, mode = showMode) {
     builderDraft = {
       quizName: quiz.quizName,
       description: quiz.description,
-      theme: quiz.theme
+      theme: quiz.theme,
+      phrasePuzzle: quiz.phrasePuzzle
     };
   }
   const content = quiz || builderDraft || {};
+  if (quiz) {
+    phrasePuzzleConfig = quiz.phrasePuzzle || null;
+    phrasePuzzleEnabled = Boolean(quiz.phrasePuzzle);
+  } else if (builderDraft) {
+    phrasePuzzleConfig = builderDraft.phrasePuzzle || null;
+    phrasePuzzleEnabled = Boolean(builderDraft.phrasePuzzle);
+  } else {
+    phrasePuzzleConfig = null;
+    phrasePuzzleEnabled = false;
+  }
   boardEnabled = quiz
     ? Boolean(quiz.boardEnabled || showMode === "Board")
     : showMode === "Board" || showMode === "Custom" && Boolean(builderDraft?.boardEnabled ?? !builderDraft);
@@ -774,6 +902,7 @@ function renderBuilder(quiz = null, mode = showMode) {
     </div>
     <section class="builder-layout ${isCustomStudio ? "builder-layout-custom" : ""}">
       <form class="builder-main ${isCustomStudio ? "custom-builder-main" : ""}" data-form="create">
+        ${privateFamilyTemplate ? `<div class="private-template-banner"><span class="card-kicker">PRIVATE FAMILY SHOW</span><strong>Only people with your invitation link can open this template.</strong><button class="quiet-btn" type="button" data-action="copy-private-template">Copy private template link</button></div>` : ""}
         ${isCustomStudio ? `<div class="custom-identity-block"><span class="card-kicker">01 · SHOW IDENTITY</span><strong>Set the room tone</strong><small>These details appear before the first round and on the live scoreboard.</small></div>` : ""}
         <label class="field-label" for="quiz-name">${isCustomStudio ? "Show title" : "Give your quiz a name"}</label>
         <input id="quiz-name" class="text-field" name="quizName" maxlength="80" value="${escapeHtml(content.quizName || "")}" placeholder="e.g. The Great Movie Mix-Up" required>
@@ -837,6 +966,7 @@ function quizPayload(form) {
     boardTitle,
     boardLayout,
     boardStyle,
+    phrasePuzzle: phrasePuzzleEnabled ? phrasePuzzleConfig : null,
     questions
   };
   builderDraft = payload;
@@ -1037,6 +1167,56 @@ function renderCustomPipeline() {
   </div>`;
 }
 
+function renderPhrasePuzzleEditor() {
+  const enabled = phrasePuzzleEnabled;
+  const config = phrasePuzzleConfig || defaultPhrasePuzzle();
+  const rounds = config.smashRounds.map((round, index) => `
+    <article class="smash-round-editor" data-smash-index="${index}">
+      <div class="smash-round-editor-heading">
+        <strong>Timed prompt ${index + 1}</strong>
+        ${config.smashRounds.length > 1 ? `<button type="button" class="remove-answer" data-action="remove-smash-round" data-index="${index}" aria-label="Remove timed prompt ${index + 1}">×</button>` : ""}
+      </div>
+      <label class="field-label">Prompt
+        <input class="option-field smash-prompt-field" maxlength="160" value="${escapeHtml(round.prompt)}" placeholder="Name as many fruits as you can">
+      </label>
+      <label class="field-label">Accepted answers <span>Separate answers with commas or new lines</span>
+        <textarea class="text-field smash-accepted-field" maxlength="8000" rows="3">${escapeHtml(round.acceptedAnswers.join("\n"))}</textarea>
+      </label>
+    </article>`).join("");
+  return `<section class="phrase-puzzle-editor" aria-labelledby="phrase-puzzle-heading">
+    <div class="mode-settings-heading">
+      <span class="card-kicker">PUZZLE MODULE</span>
+      <h3 id="phrase-puzzle-heading">Reveal a secret phrase</h3>
+      <p>Correct answers earn a spinning letter card. Players race to reveal their own phrase.</p>
+    </div>
+    <label class="mode-toggle">
+      <input id="phrase-puzzle-toggle" type="checkbox" ${enabled ? "checked" : ""}>
+      <span><strong>Enable phrase cards and Smash the Answer</strong><small>Reusable in any show. Keep your phrase private by sharing only with people you trust.</small></span>
+    </label>
+    ${enabled ? `
+      <div class="phrase-puzzle-fields">
+        <label class="field-label" for="phrase-puzzle-text">Secret phrase
+          <input id="phrase-puzzle-text" class="text-field" maxlength="100" value="${escapeHtml(config.phrase)}" placeholder="Enter your own phrase" required>
+        </label>
+        <p class="mode-settings-note">Only letters and single spaces are supported. Each player earns cards for their own copy of the phrase.</p>
+        <div class="mode-toggle-list">
+          <label class="mode-toggle">
+            <input id="smash-enabled-toggle" type="checkbox" ${config.smashEnabled ? "checked" : ""}>
+            <span><strong>Include Smash the Answer rounds</strong><small>Players enter as many correct responses as possible in 60 seconds.</small></span>
+          </label>
+        </div>
+        ${boardEnabled
+          ? `<label class="field-label" for="smash-laps">Start Smash after this many board laps
+              <input id="smash-laps" class="option-field" type="number" min="1" max="10" value="${Number(config.lapsBeforeSmash) || 2}">
+            </label>`
+          : `<p class="mode-settings-note">Without a board, Smash the Answer starts after the question bank is complete.</p>`}
+        <div class="smash-round-list">${rounds}</div>
+        ${config.smashRounds.length < 20 ? `<button type="button" class="quiet-btn add-board-tile" data-action="add-smash-round">＋ Add a timed prompt</button>` : ""}
+        <p class="mode-settings-note">Most correct unique answers wins a card. Ties share the award. Five-minute point leaders also receive two cards.</p>
+      </div>` : ""}
+  </section>`;
+}
+
 function renderModeSettings() {
   const container = document.getElementById("mode-settings");
   if (!container) return;
@@ -1079,6 +1259,7 @@ function renderModeSettings() {
         ? `<p class="mode-settings-note">Wheel subjects come from the Subject fields on your questions. Questions with the same subject share a wheel segment.</p>`
         : ""}
       ${wheelPreview}
+      ${renderPhrasePuzzleEditor()}
       ${showBoard ? renderBoardEditor() : ""}
     </section>`;
 }
@@ -1435,9 +1616,15 @@ function renderSurveyResults(question, responses) {
 function snapshotTransition(previous, snapshot, modeType) {
   if (!previous) return null;
   const rolled = (snapshot.rollSequence || 0) > (previous.rollSequence || 0);
+  const previousCardSequence = Math.max(0, ...(previous.cardAwards || []).map(award => award.sequence));
+  const newCardAwards = (snapshot.cardAwards || []).filter(award => award.sequence > previousCardSequence);
   if (snapshot.status === "Finished" && previous.status !== "Finished") {
     if (rolled) diceAnimationUntil = Date.now() + 1800;
-    return { type: "finish", diceRoll: rolled };
+    return { type: "finish", diceRoll: rolled, cardAwards: newCardAwards };
+  }
+  if (newCardAwards.length) {
+    if (rolled) diceAnimationUntil = Date.now() + 1800;
+    return { type: "letter-card", diceRoll: rolled, cardAwards: newCardAwards };
   }
   if (rolled) {
     diceAnimationUntil = Date.now() + 1800;
@@ -1477,7 +1664,7 @@ function renderBoardTrack(snapshot, animateMove = false) {
     const image = boardTileImageSrc(tile);
     return `<div class="live-board-tile-wrap" style="${placement}">
       <div class="live-board-tile ${boardTileClass(tile.action)} ${index === 0 ? "live-board-start" : ""} ${currentTile ? "live-board-current" : ""}">
-        <span class="live-board-index">${index === 0 ? "START" : index + 1 === tiles.length ? "FINISH" : index + 1}</span>
+        <span class="live-board-index">${index === 0 ? "START" : index + 1 === tiles.length && !snapshot.phrasePuzzleEnabled ? "FINISH" : index + 1}</span>
         ${image ? `<img src="${image}" alt="" loading="lazy">` : ""}
         <strong>${escapeHtml(boardTileLabel(tile))}</strong>
         <span class="live-board-players">${playersHere.map(player =>
@@ -1524,6 +1711,74 @@ function renderWheel(snapshot, isHost) {
   </section>`;
 }
 
+function renderPhraseProgress(snapshot, currentUsername = null) {
+  if (!snapshot.phrasePuzzleEnabled) return "";
+  const players = snapshot.phrasePlayers || [];
+  return `<section class="phrase-progress-panel" aria-label="Secret phrase progress">
+    <div class="phrase-progress-heading">
+      <span class="card-kicker">SECRET CODE</span>
+      <strong>Earn cards to reveal the phrase</strong>
+      <span class="phrase-bonus-clock">${phraseBonusText(snapshot)}</span>
+    </div>
+    ${players.length ? `<div class="phrase-player-grid">${players.map(player => `
+      <article class="phrase-player-progress ${currentUsername?.toLocaleLowerCase() === player.username.toLocaleLowerCase() ? "phrase-player-self" : ""}">
+        <strong>${escapeHtml(player.username)}</strong>
+        <div class="phrase-mask" aria-label="Masked phrase">${escapeHtml(player.maskedPhrase)}</div>
+        <small>${player.cardsEarned} cards${snapshot.boardEnabled ? ` · ${player.boardLapsCompleted} laps` : ""}${snapshot.status === "SmashAnswer" ? ` · ${player.smashCorrectAnswers} correct` : ""}</small>
+      </article>`).join("")}</div>` : `<p class="mode-settings-note">Players’ phrase cards appear here.</p>`}
+  </section>`;
+}
+
+function renderCardAward(transition, modeType, username = null) {
+  const awards = (transition?.cardAwards || []).filter(award =>
+    modeType === "host" || award.username.toLocaleLowerCase() === username?.toLocaleLowerCase());
+  if (!awards.length) return "";
+  return `<div class="phrase-card-overlay" role="status" aria-live="assertive">
+    <div class="phrase-card-stack">${awards.map(award => `
+      <div class="phrase-reveal-card">
+        <div class="phrase-card-front"><span>PARADOX</span><strong>?</strong><small>SECRET CODE</small></div>
+        <div class="phrase-card-back"><span>LETTER FOUND</span><strong>${escapeHtml(award.letter)}</strong><small>${escapeHtml(award.username)} · ${escapeHtml(award.reason)}</small></div>
+      </div>`).join("")}</div>
+  </div>`;
+}
+
+function renderSmashHost(snapshot) {
+  const round = snapshot.smashRound;
+  const remaining = secondsLeft(round?.endsAtUtc);
+  const players = (snapshot.phrasePlayers || []).slice().sort((first, second) =>
+    second.smashCorrectAnswers - first.smashCorrectAnswers);
+  return `<section class="smash-round-panel">
+    <p class="card-kicker">SMASH THE ANSWER · ROUND ${round?.roundNumber || 1}</p>
+    <h2>Think fast. Type everything you know.</h2>
+    <p class="smash-prompt">${escapeHtml(round?.prompt || "The next rapid-fire prompt is loading…")}</p>
+    <div class="smash-clock-row"><strong class="smash-clock">${remaining} sec</strong><span>Each unique correct answer counts once.</span></div>
+    <div class="timer-track"><div class="timer-fill smash-timer-fill" style="width:${remaining / 60 * 100}%"></div></div>
+    <div class="smash-scoreboard">${players.map(player => `<div><span>${escapeHtml(player.username)}</span><strong>${player.smashCorrectAnswers}</strong></div>`).join("")}</div>
+    <button class="primary-btn" data-action="next" ${remaining > 0 ? "disabled" : ""}>${remaining > 0 ? "Round in progress…" : "Reveal card and next prompt"} <span aria-hidden="true">→</span></button>
+  </section>`;
+}
+
+function renderSmashPlayer(snapshot, username) {
+  const round = snapshot.smashRound;
+  const remaining = secondsLeft(round?.endsAtUtc);
+  const answers = round?.myAnswers || [];
+  const correctCount = snapshot.phrasePlayers?.find(player =>
+    player.username.toLocaleLowerCase() === username.toLocaleLowerCase())?.smashCorrectAnswers || 0;
+  return `<section class="smash-round-panel">
+    <p class="card-kicker">SMASH THE ANSWER · ROUND ${round?.roundNumber || 1}</p>
+    <h2>Think fast. Type everything you know.</h2>
+    <p class="smash-prompt">${escapeHtml(round?.prompt || "The next rapid-fire prompt is loading…")}</p>
+    <div class="smash-clock-row"><strong class="smash-clock">${remaining} sec</strong><span>${answers.length} answers entered</span></div>
+    <div class="timer-track"><div class="timer-fill smash-timer-fill" style="width:${remaining / 60 * 100}%"></div></div>
+    <form class="smash-answer-form" data-form="smash">
+      <label class="field-label" for="smash-answers">Your answers, one per line</label>
+      <textarea id="smash-answers" class="text-field" name="answers" maxlength="10000" rows="7" placeholder="Apple&#10;Banana&#10;Orange" ${remaining === 0 ? "disabled" : ""}>${escapeHtml(answers.join("\n"))}</textarea>
+      <div class="smash-answer-actions"><span>Only unique correct answers score.</span><button class="primary-btn" type="submit" ${remaining === 0 ? "disabled" : ""}>${remaining === 0 ? "Time is up" : "Submit answers"} <span aria-hidden="true">→</span></button></div>
+    </form>
+    <p class="smash-player-score" aria-live="polite">${escapeHtml(username)}, your current correct count is ${correctCount}.</p>
+  </section>`;
+}
+
 function renderHost(snapshot, transition) {
   const host = JSON.parse(sessionStorage.getItem("paradox-host") || "null");
   if (!host) return renderJoin();
@@ -1532,6 +1787,7 @@ function renderHost(snapshot, transition) {
   const lobby = snapshot.status === "Lobby";
   const finished = snapshot.status === "Finished";
   const wheel = snapshot.status === "Wheel";
+  const smash = snapshot.status === "SmashAnswer";
   const boardTurn = snapshot.boardEnabled && snapshot.status === "BoardTurn";
   const boardAction = snapshot.boardEnabled && snapshot.status === "BoardAction";
   const title = finished ? "That’s a wrap!" : snapshot.quizName;
@@ -1543,9 +1799,11 @@ function renderHost(snapshot, transition) {
   );
   const questionType = snapshot.currentQuestion?.type || "MultipleChoice";
   const isPublicHost = usesBrowserQuizLibrary();
+  if (transition?.cardAwards?.length) playPhraseCardSound();
   app.innerHTML = `
     <section class="game-layout">
       <div class="game-header"><h1>${escapeHtml(title)}</h1><div class="game-pin"><span>JOIN PIN</span><strong>${escapeHtml(snapshot.pin)}</strong></div></div>
+      ${renderPhraseProgress(snapshot)}
       ${lobby ? `
         <div class="lobby-layout">
           <section class="waiting-panel">
@@ -1568,6 +1826,12 @@ function renderHost(snapshot, transition) {
           <h2 class="leaderboard-heading">Final leaderboard</h2>
           ${scoreList}
           <div style="display:flex;justify-content:center;margin-top:22px"><button class="primary-btn" data-action="new-quiz">Create another quiz</button></div>
+        </div>
+      ` : smash ? `
+        <div class="game-panel">
+          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, Boolean(transition?.diceRoll || transition?.type === "board-move")) : ""}
+          ${renderSmashHost(snapshot)}
+          <h3 class="leaderboard-heading">Leaderboard</h3>${scoreList}
         </div>
       ` : wheel ? `
         <div class="game-panel">
@@ -1612,7 +1876,8 @@ function renderHost(snapshot, transition) {
           <div class="aside-divider"></div><h3 class="leaderboard-heading">${snapshot.status === "Reveal" ? "Updated leaderboard" : "Live leaderboard"}</h3>${scoreList}
         </div>
       `}
-    </section>`;
+    </section>
+    ${renderCardAward(transition, "host")}`;
 }
 
 function renderPlayer(snapshot, transition) {
@@ -1623,6 +1888,7 @@ function renderPlayer(snapshot, transition) {
   const lobby = snapshot.status === "Lobby";
   const finished = snapshot.status === "Finished";
   const wheel = snapshot.status === "Wheel";
+  const smash = snapshot.status === "SmashAnswer";
   const boardTurn = snapshot.boardEnabled && snapshot.status === "BoardTurn";
   const boardAction = snapshot.boardEnabled && snapshot.status === "BoardAction";
   const players = snapshot.players || [];
@@ -1639,9 +1905,11 @@ function renderPlayer(snapshot, transition) {
     snapshot.status === "Reveal" || finished,
     transition?.type === "reveal"
   );
+  if (transition?.cardAwards?.length) playPhraseCardSound();
   app.innerHTML = `
     <section class="game-layout">
       <div class="game-header"><h1>${escapeHtml(snapshot.quizName)}</h1><div class="game-pin"><span>YOU’RE IN</span><strong>${escapeHtml(player.username)}</strong></div></div>
+      ${renderPhraseProgress(snapshot, player.username)}
       ${lobby ? `
         <div class="waiting-panel" style="text-align:center;padding:56px 25px">
           <span class="eyebrow">✦ You made it</span><h2 style="font-size:28px">You’re in the lobby, ${escapeHtml(player.username)}.</h2>
@@ -1656,6 +1924,12 @@ function renderPlayer(snapshot, transition) {
           ${renderWinnerAnnouncement(players, player.username, transition?.type === "finish", snapshot.winnerUsername)}
           <h2 class="leaderboard-heading">Final leaderboard</h2>${scoreList}
           <div style="display:flex;justify-content:center;margin-top:24px"><button class="secondary-btn" data-action="leave">Back to Paradox</button></div>
+        </div>
+      ` : smash ? `
+        <div class="game-panel">
+          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, Boolean(transition?.diceRoll || transition?.type === "board-move")) : ""}
+          ${renderSmashPlayer(snapshot, player.username)}
+          <h3 class="leaderboard-heading">Leaderboard</h3>${scoreList}
         </div>
       ` : wheel ? `
         <div class="game-panel">
@@ -1737,12 +2011,20 @@ function renderPlayer(snapshot, transition) {
           `}
         </div>
       `}
-    </section>`;
+    </section>
+    ${renderCardAward(transition, "player", player.username)}`;
 }
 
 function secondsLeft(endTime) {
   if (!endTime) return 0;
   return Math.max(0, Math.ceil((new Date(endTime).getTime() - Date.now()) / 1000));
+}
+
+function phraseBonusText(snapshot) {
+  if (snapshot.status === "Finished") return "Puzzle complete";
+  if (!snapshot.nextCardBonusAtUtc) return "Two-card bonus starts when the show begins";
+  const remaining = secondsLeft(snapshot.nextCardBonusAtUtc);
+  return `Next two-card bonus in ${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}`;
 }
 
 function timerPercent(snapshot) {
@@ -1753,12 +2035,33 @@ function timerPercent(snapshot) {
 function updateClock(snapshot) {
   const clock = document.querySelector(".question-clock");
   const fill = document.querySelector(".timer-fill");
+  const smashClock = document.querySelector(".smash-clock");
+  const smashFill = document.querySelector(".smash-timer-fill");
+  const phraseBonusClock = document.querySelector(".phrase-bonus-clock");
   if (clock) {
     clock.textContent = snapshot.status !== "Question"
       ? currentMode?.type === "host" ? `${snapshot.playerCount} playing` : "SCORES"
       : `${secondsLeft(snapshot.endsAtUtc)} sec`;
   }
   if (fill) fill.style.width = `${timerPercent(snapshot)}%`;
+  if (phraseBonusClock) phraseBonusClock.textContent = phraseBonusText(snapshot);
+  if (smashClock && snapshot.smashRound) {
+    const remaining = secondsLeft(snapshot.smashRound.endsAtUtc);
+    smashClock.textContent = `${remaining} sec`;
+    if (smashFill) smashFill.style.width = `${remaining / 60 * 100}%`;
+    const revealButton = document.querySelector(".smash-round-panel [data-action='next']");
+    if (revealButton) {
+      revealButton.disabled = remaining > 0;
+      revealButton.firstChild.textContent = remaining > 0 ? "Round in progress…" : "Reveal card and next prompt ";
+    }
+    const answersField = document.getElementById("smash-answers");
+    const submitButton = document.querySelector(".smash-answer-form button[type='submit']");
+    if (answersField) answersField.disabled = remaining === 0;
+    if (submitButton) {
+      submitButton.disabled = remaining === 0;
+      submitButton.firstChild.textContent = remaining === 0 ? "Time is up " : "Submit answers ";
+    }
+  }
 }
 
 function snapshotSignature(snapshot) {
@@ -1787,7 +2090,12 @@ function snapshotSignature(snapshot) {
     snapshot.boardStyle,
     snapshot.boardTiles,
     snapshot.tileMessage,
-    snapshot.winnerUsername
+    snapshot.winnerUsername,
+    snapshot.phrasePuzzleEnabled,
+    snapshot.phrasePlayers,
+    snapshot.cardAwards,
+    snapshot.smashRound,
+    snapshot.nextCardBonusAtUtc
   ]);
 }
 
@@ -1856,6 +2164,7 @@ function restoreSession() {
 window.addEventListener("popstate", renderRoute);
 
 document.addEventListener("click", async event => {
+  unlockGameAudio();
   const appLink = event.target.closest("a[data-app-link]");
   if (appLink &&
       event.button === 0 &&
@@ -1884,6 +2193,15 @@ document.addEventListener("click", async event => {
   }
   if (action === "use-template") {
     startFromTemplate(actionButton.dataset.template);
+    return;
+  }
+  if (action === "copy-private-template") {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      notify("Private family template link copied. Only share it with people you trust.");
+    } catch {
+      notify("Copy the complete private link from your browser address bar.");
+    }
     return;
   }
   if (action === "copy-invite") {
@@ -1959,6 +2277,24 @@ document.addEventListener("click", async event => {
     syncBuilderSettingsFromForm();
     if (boardTiles.length >= 40) return notify("A board can have up to 40 tiles.");
     boardTiles.push({ action: "Question", amount: 100, subject: "", prompt: "", label: "", imageDataUrl: "", imageKey: "" });
+    renderModeSettings();
+    return;
+  }
+  if (action === "add-smash-round") {
+    syncQuestionsFromForm();
+    syncBuilderSettingsFromForm();
+    if (!phrasePuzzleConfig || phrasePuzzleConfig.smashRounds.length >= 20)
+      return notify("A phrase puzzle can have up to 20 timed prompts.");
+    phrasePuzzleConfig.smashRounds.push({ prompt: "", acceptedAnswers: [""] });
+    renderModeSettings();
+    return;
+  }
+  if (action === "remove-smash-round") {
+    syncQuestionsFromForm();
+    syncBuilderSettingsFromForm();
+    if (!phrasePuzzleConfig || phrasePuzzleConfig.smashRounds.length <= 1)
+      return notify("A phrase puzzle needs at least one timed prompt.");
+    phrasePuzzleConfig.smashRounds.splice(Number(actionButton.dataset.index), 1);
     renderModeSettings();
     return;
   }
@@ -2189,6 +2525,16 @@ document.addEventListener("change", async event => {
     syncBuilderSettingsFromForm();
     renderModeSettings();
   }
+  if (event.target.id === "phrase-puzzle-toggle") {
+    if (event.target.checked && !phrasePuzzleConfig)
+      phrasePuzzleConfig = defaultPhrasePuzzle();
+    syncBuilderSettingsFromForm();
+    renderModeSettings();
+  }
+  if (event.target.id === "smash-enabled-toggle") {
+    syncBuilderSettingsFromForm();
+    renderModeSettings();
+  }
   if (event.target.matches(".board-tile-action")) {
     syncQuestionsFromForm();
     syncBuilderSettingsFromForm();
@@ -2241,6 +2587,7 @@ async function hostQuiz(quiz) {
     boardTitle: quiz.boardTitle || "The Showdown",
     boardLayout: quiz.boardLayout || "Track",
     boardStyle: quiz.boardStyle || "Aurora",
+    phrasePuzzle: quiz.phrasePuzzle || null,
     questions: quiz.questions
   });
   sessionStorage.removeItem("paradox-player");
@@ -2295,6 +2642,23 @@ document.addEventListener("submit", async event => {
     button.disabled = true;
     try {
       await post(`/api/games/${room.pin}/answers`, { answerText }, { "X-Player-Id": room.playerId });
+      await refreshRoom();
+    } catch (error) {
+      button.disabled = false;
+      notify(error.message);
+    }
+    return;
+  }
+
+  if (form.dataset.form === "smash") {
+    const room = JSON.parse(sessionStorage.getItem("paradox-player") || "null");
+    const answerText = new FormData(form).get("answers")?.toString() || "";
+    const answers = answerText.split(/[\n,]/).map(answer => answer.trim()).filter(Boolean);
+    if (!room || answers.length > 100) return notify("Submit no more than 100 answers in one round.");
+    const button = form.querySelector('button[type="submit"]');
+    button.disabled = true;
+    try {
+      await post(`/api/games/${room.pin}/smash/answers`, { answers }, { "X-Player-Id": room.playerId });
       await refreshRoom();
     } catch (error) {
       button.disabled = false;

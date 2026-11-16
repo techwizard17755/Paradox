@@ -12,6 +12,7 @@ internal interface IGameService
     GameActionResult Next(string pin, string hostKey);
     GameActionResult SpinWheel(string pin, string hostKey, string? subject);
     GameActionResult RollBoard(string pin, string playerId);
+    GameActionResult SubmitSmashAnswers(string pin, string playerId, IReadOnlyList<string> answers);
 }
 
 internal enum GameActionStatus
@@ -43,6 +44,9 @@ internal sealed class GameService : IGameService
             return (null, "The quiz description must be 280 characters or fewer.");
         if (!Enum.IsDefined(request.Mode))
             return (null, "Choose a supported show mode.");
+        var phrasePuzzleError = PhrasePuzzleValidator.Validate(request.PhrasePuzzle);
+        if (phrasePuzzleError is not null)
+            return (null, phrasePuzzleError);
 
         if (request.Questions is null || request.Questions.Count == 0 || request.Questions.Count > 30)
             return (null, "A quiz needs between 1 and 30 questions.");
@@ -130,6 +134,20 @@ internal sealed class GameService : IGameService
             : [];
         var hasBoard = ShowConfigurationValidator.HasBoard(request.Mode, request.BoardEnabled);
         var hasWheel = ShowConfigurationValidator.HasSubjectWheel(request.Mode, request.SubjectWheelEnabled);
+        var phrasePuzzle = request.PhrasePuzzle is null
+            ? null
+            : request.PhrasePuzzle with
+            {
+                Phrase = request.PhrasePuzzle.Phrase.Trim(),
+                SmashRounds = request.PhrasePuzzle.SmashRounds.Select(round => round with
+                {
+                    Prompt = round.Prompt.Trim(),
+                    AcceptedAnswers = round.AcceptedAnswers
+                        .Select(answer => answer.Trim())
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList()
+                }).ToList()
+            };
 
         lock (_gate)
         {
@@ -153,7 +171,8 @@ internal sealed class GameService : IGameService
                 boardTiles,
                 request.BoardTitle.Trim(),
                 request.BoardLayout,
-                request.BoardStyle));
+                request.BoardStyle,
+                phrasePuzzle));
             return (new GameCreatedResponse(pin, hostKey, title), null);
         }
     }
@@ -197,6 +216,7 @@ internal sealed class GameService : IGameService
             }
 
             AdvanceExpiredQuestion(game);
+            AdvancePhraseBonus(game, DateTimeOffset.UtcNow);
             return Snapshot(game, playerId, isHost);
         }
     }
@@ -212,6 +232,8 @@ internal sealed class GameService : IGameService
             if (game.Players.Count == 0)
                 return Conflict("Wait for at least one player to join before starting.");
 
+            if (game.PhrasePuzzle is not null)
+                game.NextPhraseBonusAtUtc = DateTimeOffset.UtcNow.AddMinutes(5);
             if (game.BoardEnabled)
             {
                 game.CurrentTurnIndex = 0;
@@ -246,6 +268,7 @@ internal sealed class GameService : IGameService
                 return new(GameActionStatus.Unauthorized, null, "Your player session could not be found.");
 
             AdvanceExpiredQuestion(game);
+            AdvancePhraseBonus(game, DateTimeOffset.UtcNow);
             if (game.Status != GameStatus.Question)
                 return Conflict("This question is no longer accepting answers.");
             if (game.BoardEnabled && !string.Equals(game.CurrentPlayerId, playerId, StringComparison.Ordinal))
@@ -289,7 +312,7 @@ internal sealed class GameService : IGameService
                     var remaining = Math.Max(0, (game.EndsAtUtc!.Value - DateTimeOffset.UtcNow).TotalSeconds);
                     player.LastAnswerPoints = 500 + (int)Math.Round(500 * remaining / question.TimeLimitSeconds);
                 }
-                player.Score += player.LastAnswerPoints.Value;
+                AddScore(game, player, player.LastAnswerPoints.Value);
             }
             else
             {
@@ -297,14 +320,25 @@ internal sealed class GameService : IGameService
             }
 
             game.LeaderboardDirty = true;
+            if (isCorrect && game.PhrasePuzzle is not null)
+                AwardPhraseCard(game, player, "Question solved");
+
+            if (game.Status == GameStatus.Finished)
+                return Success(game, playerId);
             if (game.BoardEnabled)
             {
                 if (question.Type != QuestionType.Survey && !isCorrect)
                 {
                     player.Position = player.PositionBeforeRoll;
+                    player.BoardLapsCompleted = player.BoardLapsBeforeRoll;
                     game.FinishAfterTurn = false;
                     game.TileMessage = $"{player.Username} got the answer wrong and moved back to tile {player.Position + 1}.";
                 }
+                game.Status = GameStatus.Reveal;
+                game.EndsAtUtc = null;
+            }
+            else if (game.PhrasePuzzle is not null)
+            {
                 game.Status = GameStatus.Reveal;
                 game.EndsAtUtc = null;
             }
@@ -320,6 +354,14 @@ internal sealed class GameService : IGameService
                 return error!;
 
             AdvanceExpiredQuestion(game);
+            AdvancePhraseBonus(game, DateTimeOffset.UtcNow);
+            if (game.Status == GameStatus.SmashAnswer)
+            {
+                if (game.EndsAtUtc is { } smashEndsAt && smashEndsAt > DateTimeOffset.UtcNow)
+                    return Conflict("Wait for the 60-second Smash the Answer round to finish.");
+                ResolveSmashRound(game);
+                return Success(game);
+            }
             if (game.BoardEnabled)
             {
                 if (game.Status is not (GameStatus.Reveal or GameStatus.BoardAction))
@@ -339,6 +381,8 @@ internal sealed class GameService : IGameService
             {
                 if (game.UnusedQuestionIndexes.Count == 0)
                 {
+                    if (BeginSmashAfterQuestions(game))
+                        return Success(game);
                     game.Status = GameStatus.Finished;
                     game.EndsAtUtc = null;
                     return Success(game);
@@ -348,6 +392,8 @@ internal sealed class GameService : IGameService
             }
             if (game.CurrentQuestionIndex + 1 >= game.Questions.Count)
             {
+                if (BeginSmashAfterQuestions(game))
+                    return Success(game);
                 game.Status = GameStatus.Finished;
                 game.EndsAtUtc = null;
                 return Success(game);
@@ -413,6 +459,7 @@ internal sealed class GameService : IGameService
                 return NotFound();
             if (!game.Players.TryGetValue(playerId, out var player))
                 return new(GameActionStatus.Unauthorized, null, "Your player session could not be found.");
+            AdvancePhraseBonus(game, DateTimeOffset.UtcNow);
             if (!game.BoardEnabled || game.Status != GameStatus.BoardTurn)
                 return Conflict("The board is not waiting for a roll.");
             if (!string.Equals(game.CurrentPlayerId, playerId, StringComparison.Ordinal))
@@ -422,9 +469,36 @@ internal sealed class GameService : IGameService
             game.LastRoll = roll;
             game.RollSequence++;
             player.PositionBeforeRoll = player.Position;
-            player.Position = Math.Min(game.BoardTiles.Count - 1, player.Position + roll);
+            player.BoardLapsBeforeRoll = player.BoardLapsCompleted;
+            MovePlayerForward(game, player, roll);
             game.TileMessage = $"{player.Username} rolled {roll}.";
             ResolveBoardTile(game, player, 0);
+            return Success(game, playerId);
+        }
+    }
+
+    public GameActionResult SubmitSmashAnswers(string pin, string playerId, IReadOnlyList<string> answers)
+    {
+        lock (_gate)
+        {
+            if (!_games.TryGetValue(NormalizePin(pin), out var game))
+                return NotFound();
+            if (!game.Players.TryGetValue(playerId, out var player))
+                return new(GameActionStatus.Unauthorized, null, "Your player session could not be found.");
+            AdvancePhraseBonus(game, DateTimeOffset.UtcNow);
+            if (game.Status != GameStatus.SmashAnswer || game.PhrasePuzzle is null)
+                return Conflict("Smash the Answer is not accepting responses.");
+            if (game.EndsAtUtc <= DateTimeOffset.UtcNow)
+                return Conflict("The Smash the Answer timer has ended. Wait for the host to reveal the result.");
+            if (answers.Count > 100)
+                return new(GameActionStatus.BadRequest, null, "Submit no more than 100 answers in one round.");
+            if (answers.Any(answer => string.IsNullOrWhiteSpace(answer) || answer.Trim().Length > 80))
+                return new(GameActionStatus.BadRequest, null, "Each Smash the Answer response must contain 1 to 80 characters.");
+
+            player.SmashAnswers = answers
+                .Select(answer => answer.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
             return Success(game, playerId);
         }
     }
@@ -474,7 +548,7 @@ internal sealed class GameService : IGameService
     {
         if (depth > game.BoardTiles.Count)
         {
-            if (player.Position == game.BoardTiles.Count - 1)
+            if (game.PhrasePuzzle is null && player.Position == game.BoardTiles.Count - 1)
             {
                 FinishBoardGame(game);
                 return;
@@ -488,7 +562,8 @@ internal sealed class GameService : IGameService
         switch (tile.Action)
         {
             case BoardTileAction.Question:
-                game.FinishAfterTurn = player.Position == game.BoardTiles.Count - 1;
+                game.FinishAfterTurn = game.PhrasePuzzle is null &&
+                    player.Position == game.BoardTiles.Count - 1;
                 if (game.SubjectWheelEnabled)
                 {
                     BeginWheel(game, isBoardTurn: true, tile.Subject);
@@ -507,25 +582,23 @@ internal sealed class GameService : IGameService
                 return;
 
             case BoardTileAction.Bonus:
-                player.Score += tile.Amount;
-                game.LeaderboardDirty = true;
+                AddScore(game, player, tile.Amount);
                 CompleteBoardTile(game, player, $"{player.Username} gained {tile.Amount} points.");
                 return;
 
             case BoardTileAction.Penalty:
-                player.Score = Math.Max(0, player.Score - tile.Amount);
-                game.LeaderboardDirty = true;
+                AddScore(game, player, -tile.Amount);
                 CompleteBoardTile(game, player, $"{player.Username} lost {tile.Amount} points.");
                 return;
 
             case BoardTileAction.MoveForward:
-                player.Position = Math.Min(game.BoardTiles.Count - 1, player.Position + tile.Amount);
+                MovePlayerForward(game, player, tile.Amount);
                 game.TileMessage = $"{player.Username} moved forward {tile.Amount} spaces.";
                 ResolveBoardTile(game, player, depth + 1);
                 return;
 
             case BoardTileAction.MoveBackward:
-                player.Position = Math.Max(0, player.Position - tile.Amount);
+                MovePlayerBackward(game, player, tile.Amount);
                 game.TileMessage = $"{player.Username} moved backward {tile.Amount} spaces.";
                 ResolveBoardTile(game, player, depth + 1);
                 return;
@@ -538,7 +611,8 @@ internal sealed class GameService : IGameService
             case BoardTileAction.Custom:
                 game.Status = GameStatus.BoardAction;
                 game.EndsAtUtc = null;
-                game.FinishAfterTurn = player.Position == game.BoardTiles.Count - 1;
+                game.FinishAfterTurn = game.PhrasePuzzle is null &&
+                    player.Position == game.BoardTiles.Count - 1;
                 game.TileMessage = tile.Prompt;
                 return;
 
@@ -551,7 +625,7 @@ internal sealed class GameService : IGameService
     private static void CompleteBoardTile(Game game, Player player, string message)
     {
         game.TileMessage = message;
-        if (player.Position == game.BoardTiles.Count - 1)
+        if (game.PhrasePuzzle is null && player.Position == game.BoardTiles.Count - 1)
         {
             FinishBoardGame(game);
             return;
@@ -561,6 +635,13 @@ internal sealed class GameService : IGameService
 
     private static void AdvanceToNextBoardTurn(Game game)
     {
+        if (game.PhrasePuzzle is { SmashEnabled: true } puzzle &&
+            game.Players.Values.Any(player => player.BoardLapsCompleted >= puzzle.LapsBeforeSmash))
+        {
+            BeginSmashRound(game);
+            return;
+        }
+
         var previousMessage = game.TileMessage;
         var skippedPlayers = new List<string>();
         for (var attempt = 0; attempt < game.PlayerOrder.Count; attempt++)
@@ -641,6 +722,157 @@ internal sealed class GameService : IGameService
         }
     }
 
+    private static void AdvancePhraseBonus(Game game, DateTimeOffset now)
+    {
+        if (game.PhrasePuzzle is null || game.NextPhraseBonusAtUtc is not { } nextBonus ||
+            game.Status is GameStatus.Lobby or GameStatus.Finished)
+            return;
+
+        while (nextBonus <= now && game.Status != GameStatus.Finished)
+        {
+            var highestPoints = game.Players.Values.Max(player => player.PhraseWindowPoints);
+            if (highestPoints > 0)
+            {
+                foreach (var leader in game.Players.Values.Where(player => player.PhraseWindowPoints == highestPoints))
+                {
+                    AwardPhraseCard(game, leader, "Five-minute point leader");
+                    AwardPhraseCard(game, leader, "Five-minute point leader");
+                    if (game.Status == GameStatus.Finished)
+                        break;
+                }
+            }
+
+            foreach (var player in game.Players.Values)
+                player.PhraseWindowPoints = 0;
+            nextBonus = nextBonus.AddMinutes(5);
+        }
+
+        game.NextPhraseBonusAtUtc = nextBonus;
+    }
+
+    private static void AddScore(Game game, Player player, int requestedChange)
+    {
+        AdvancePhraseBonus(game, DateTimeOffset.UtcNow);
+        if (game.Status == GameStatus.Finished)
+            return;
+        var oldScore = player.Score;
+        player.Score = Math.Max(0, oldScore + requestedChange);
+        if (game.PhrasePuzzle is not null)
+            player.PhraseWindowPoints += player.Score - oldScore;
+        game.LeaderboardDirty = true;
+    }
+
+    private static void AwardPhraseCard(Game game, Player player, string reason)
+    {
+        var phrase = game.PhrasePuzzle?.Phrase;
+        if (phrase is null || game.Status == GameStatus.Finished)
+            return;
+
+        var availableLetters = phrase
+            .Where(char.IsAsciiLetter)
+            .Select(char.ToUpperInvariant)
+            .Distinct()
+            .Where(letter => !player.RevealedLetters.Contains(letter))
+            .ToArray();
+        if (availableLetters.Length == 0)
+        {
+            FinishPhraseGame(game, player);
+            return;
+        }
+
+        var letter = availableLetters[RandomNumberGenerator.GetInt32(availableLetters.Length)];
+        player.RevealedLetters.Add(letter);
+        player.CardsEarned++;
+        game.CardAwards.Add(new CardAwardResponse(++game.CardSequence, player.Username, letter.ToString(), reason));
+        if (game.CardAwards.Count > 100)
+            game.CardAwards.RemoveAt(0);
+
+        if (phrase.Where(char.IsAsciiLetter).Select(char.ToUpperInvariant).Distinct().All(player.RevealedLetters.Contains))
+            FinishPhraseGame(game, player);
+    }
+
+    private static void FinishPhraseGame(Game game, Player player)
+    {
+        game.Status = GameStatus.Finished;
+        game.EndsAtUtc = null;
+        game.FinishAfterTurn = false;
+        game.WinnerUsername = player.Username;
+        game.TileMessage = $"{player.Username} found the secret phrase!";
+    }
+
+    private static void MovePlayerForward(Game game, Player player, int spaces)
+    {
+        if (game.PhrasePuzzle is null)
+        {
+            player.Position = Math.Min(game.BoardTiles.Count - 1, player.Position + spaces);
+            return;
+        }
+
+        var total = player.Position + spaces;
+        player.BoardLapsCompleted += total / game.BoardTiles.Count;
+        player.Position = total % game.BoardTiles.Count;
+    }
+
+    private static void MovePlayerBackward(Game game, Player player, int spaces)
+    {
+        if (game.PhrasePuzzle is null)
+        {
+            player.Position = Math.Max(0, player.Position - spaces);
+            return;
+        }
+
+        player.Position = (player.Position - spaces % game.BoardTiles.Count + game.BoardTiles.Count) %
+            game.BoardTiles.Count;
+    }
+
+    private static bool BeginSmashAfterQuestions(Game game)
+    {
+        if (game.PhrasePuzzle is not { SmashEnabled: true })
+            return false;
+        BeginSmashRound(game);
+        return true;
+    }
+
+    private static void BeginSmashRound(Game game)
+    {
+        var puzzle = game.PhrasePuzzle!;
+        game.Status = GameStatus.SmashAnswer;
+        game.CurrentQuestionIndex = -1;
+        game.EndsAtUtc = DateTimeOffset.UtcNow.AddSeconds(60);
+        game.SmashRoundNumber++;
+        game.TileMessage = "Smash the Answer is live. Submit as many correct answers as you can!";
+        foreach (var player in game.Players.Values)
+        {
+            player.SmashAnswers = [];
+            player.SmashCorrectAnswers = 0;
+        }
+        game.CurrentSmashRoundIndex = (game.SmashRoundNumber - 1) % puzzle.SmashRounds.Count;
+    }
+
+    private static void ResolveSmashRound(Game game)
+    {
+        var round = game.PhrasePuzzle!.SmashRounds[game.CurrentSmashRoundIndex];
+        var acceptedAnswers = round.AcceptedAnswers.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var player in game.Players.Values)
+            player.SmashCorrectAnswers = player.SmashAnswers.Count(acceptedAnswers.Contains);
+
+        var highestCount = game.Players.Values.Max(player => player.SmashCorrectAnswers);
+        Player[] winners = highestCount == 0
+            ? []
+            : game.Players.Values.Where(player => player.SmashCorrectAnswers == highestCount).ToArray();
+        if (winners.Length > 0)
+        {
+            foreach (var winner in winners)
+            {
+                AwardPhraseCard(game, winner, "Smash the Answer winner");
+                if (game.Status == GameStatus.Finished)
+                    return;
+            }
+        }
+
+        BeginSmashRound(game);
+    }
+
     private static GameSnapshotResponse Snapshot(Game game, string? playerId, bool isHost = false)
     {
         var question = game.CurrentQuestionIndex >= 0
@@ -672,6 +904,36 @@ internal sealed class GameService : IGameService
                     return new SurveyResponse(player.Username, response.OptionIndex, response.AnswerText);
                 })
                 .ToArray()
+            : null;
+        var visiblePhrasePlayerIds = isHost
+            ? game.PlayerOrder
+            : playerId is not null && game.Players.ContainsKey(playerId)
+                ? [playerId]
+                : [];
+        PhrasePlayerResponse[] phrasePlayers = game.PhrasePuzzle is null
+            ? []
+            : visiblePhrasePlayerIds
+                .Select(id => game.Players[id])
+                .Select(phrasePlayer => new PhrasePlayerResponse(
+                    phrasePlayer.Username,
+                    MaskPhrase(game.PhrasePuzzle.Phrase, phrasePlayer.RevealedLetters),
+                    phrasePlayer.CardsEarned,
+                    phrasePlayer.BoardLapsCompleted,
+                    game.Status == GameStatus.SmashAnswer
+                        ? CurrentSmashCorrectCount(game, phrasePlayer)
+                        : phrasePlayer.SmashCorrectAnswers))
+                .ToArray();
+        var smashRound = game.Status == GameStatus.SmashAnswer && game.PhrasePuzzle is not null
+            ? new SmashRoundResponse(
+                game.SmashRoundNumber,
+                game.PhrasePuzzle.SmashRounds[game.CurrentSmashRoundIndex].Prompt,
+                game.EndsAtUtc!.Value,
+                playerId is not null && game.Players.TryGetValue(playerId, out var smashPlayer)
+                    ? smashPlayer.SmashAnswers
+                    : [],
+                playerId is not null && game.Players.TryGetValue(playerId, out smashPlayer)
+                    ? CurrentSmashCorrectCount(game, smashPlayer)
+                    : 0)
             : null;
 
         return new GameSnapshotResponse(
@@ -725,8 +987,30 @@ internal sealed class GameService : IGameService
             game.BoardTitle,
             game.BoardLayout,
             game.BoardStyle,
-            game.RollSequence);
+            game.RollSequence,
+            game.PhrasePuzzle is not null,
+            phrasePlayers,
+            isHost
+                ? game.CardAwards.ToArray()
+                : playerId is not null && game.Players.TryGetValue(playerId, out var cardOwner)
+                    ? game.CardAwards.Where(award => string.Equals(
+                        award.Username,
+                        cardOwner.Username,
+                        StringComparison.OrdinalIgnoreCase)).ToArray()
+                    : [],
+            smashRound,
+            game.NextPhraseBonusAtUtc);
     }
+
+    private static string MaskPhrase(string phrase, HashSet<char> revealedLetters) =>
+        new(phrase.Select(character =>
+            character == ' ' || revealedLetters.Contains(char.ToUpperInvariant(character))
+                ? character
+                : '-').ToArray());
+
+    private static int CurrentSmashCorrectCount(Game game, Player player) =>
+        player.SmashAnswers.Count(game.PhrasePuzzle!.SmashRounds[game.CurrentSmashRoundIndex]
+            .AcceptedAnswers.ToHashSet(StringComparer.OrdinalIgnoreCase).Contains);
 
     private static GameActionResult Success(Game game, string? playerId = null) =>
         new(GameActionStatus.Success, Snapshot(game, playerId), null);
@@ -760,7 +1044,8 @@ internal sealed class GameService : IGameService
         IReadOnlyList<BoardTileRequest> boardTiles,
         string boardTitle,
         BoardLayout boardLayout,
-        BoardStyle boardStyle)
+        BoardStyle boardStyle,
+        PhrasePuzzleRequest? phrasePuzzle)
     {
         public string Pin { get; } = pin;
         public string HostKey { get; } = hostKey;
@@ -770,6 +1055,7 @@ internal sealed class GameService : IGameService
         public string BoardTitle { get; } = boardTitle;
         public BoardLayout BoardLayout { get; } = boardLayout;
         public BoardStyle BoardStyle { get; } = boardStyle;
+        public PhrasePuzzleRequest? PhrasePuzzle { get; } = phrasePuzzle;
         public ShowMode Mode { get; } = mode;
         public bool BoardEnabled { get; } = boardEnabled;
         public bool SubjectWheelEnabled { get; } = subjectWheelEnabled;
@@ -779,6 +1065,7 @@ internal sealed class GameService : IGameService
         public List<string> PlayerOrder { get; } = [];
         public List<int> UnusedQuestionIndexes { get; } = Enumerable.Range(0, questions.Count).ToList();
         public IReadOnlyList<PlayerScoreResponse> Leaderboard { get; set; } = [];
+        public List<CardAwardResponse> CardAwards { get; } = [];
         public bool LeaderboardDirty { get; set; } = true;
         public GameStatus Status { get; set; } = GameStatus.Lobby;
         public int CurrentQuestionIndex { get; set; } = -1;
@@ -790,10 +1077,14 @@ internal sealed class GameService : IGameService
         public string? WheelSubjectConstraint { get; set; }
         public int? LastRoll { get; set; }
         public int RollSequence { get; set; }
+        public int CardSequence { get; set; }
+        public int SmashRoundNumber { get; set; }
+        public int CurrentSmashRoundIndex { get; set; }
         public bool FinishAfterTurn { get; set; }
         public string? TileMessage { get; set; }
         public string? WinnerUsername { get; set; }
         public DateTimeOffset? EndsAtUtc { get; set; }
+        public DateTimeOffset? NextPhraseBonusAtUtc { get; set; }
     }
 
     private sealed class Player(string id, string username)
@@ -804,6 +1095,13 @@ internal sealed class GameService : IGameService
         public int? LastAnswerPoints { get; set; }
         public int Position { get; set; }
         public int PositionBeforeRoll { get; set; }
+        public int BoardLapsBeforeRoll { get; set; }
+        public int PhraseWindowPoints { get; set; }
+        public int BoardLapsCompleted { get; set; }
+        public int CardsEarned { get; set; }
+        public int SmashCorrectAnswers { get; set; }
+        public HashSet<char> RevealedLetters { get; } = [];
+        public List<string> SmashAnswers { get; set; } = [];
         public bool SkipNextTurn { get; set; }
         public Dictionary<int, PlayerAnswer> Answers { get; } = [];
     }

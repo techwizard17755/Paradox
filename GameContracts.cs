@@ -73,6 +73,9 @@ public sealed record CreateGameRequest
     /// <summary>Color treatment used to display the board.</summary>
     public BoardStyle BoardStyle { get; init; } = BoardStyle.Aurora;
 
+    /// <summary>Optional secret-phrase puzzle and timed answer-smash configuration.</summary>
+    public PhrasePuzzleRequest? PhrasePuzzle { get; init; }
+
     /// <summary>Questions to play in order.</summary>
     [Required, MinLength(1), MaxLength(30)]
     public required List<QuizQuestionRequest> Questions { get; init; }
@@ -96,6 +99,45 @@ public sealed record SubmitAnswerRequest
     /// <summary>Free-text response, when answering a survey or type-answer question.</summary>
     [StringLength(100)]
     public string? AnswerText { get; init; }
+}
+
+/// <summary>Phrase puzzle settings used by a hosted show.</summary>
+public sealed record PhrasePuzzleRequest
+{
+    /// <summary>Phrase players reveal by earning cards.</summary>
+    [Required, StringLength(100, MinimumLength = 1)]
+    public required string Phrase { get; init; }
+
+    /// <summary>Whether to use timed Smash the Answer rounds after the board-lap threshold or quiz questions.</summary>
+    public bool SmashEnabled { get; init; } = true;
+
+    /// <summary>Completed board laps required before Smash the Answer begins.</summary>
+    [Range(1, 10)]
+    public int LapsBeforeSmash { get; init; } = 2;
+
+    /// <summary>Timed rounds and accepted responses used by Smash the Answer.</summary>
+    [Required, MinLength(1), MaxLength(20)]
+    public required List<SmashRoundRequest> SmashRounds { get; init; }
+}
+
+/// <summary>A timed prompt and the responses accepted in one Smash the Answer round.</summary>
+public sealed record SmashRoundRequest
+{
+    /// <summary>Prompt shown to every player during the 60-second round.</summary>
+    [Required, StringLength(160, MinimumLength = 1)]
+    public required string Prompt { get; init; }
+
+    /// <summary>Unique accepted responses for the prompt, ignoring capitalization.</summary>
+    [Required, MinLength(1), MaxLength(100)]
+    public required List<string> AcceptedAnswers { get; init; }
+}
+
+/// <summary>Answers submitted by one player during an active Smash the Answer round.</summary>
+public sealed record SubmitSmashAnswersRequest
+{
+    /// <summary>Full current answer list; duplicate or incorrect responses do not score.</summary>
+    [Required, MaxLength(100)]
+    public required List<string> Answers { get; init; }
 }
 
 /// <summary>One editable space on a digital board.</summary>
@@ -163,6 +205,25 @@ public sealed record SurveyResponse(string Username, int? OptionIndex, string? A
 /// <summary>A player's public position on the digital board.</summary>
 public sealed record PlayerBoardPositionResponse(string Username, int Position);
 
+/// <summary>Public phrase progress for one game participant.</summary>
+public sealed record PhrasePlayerResponse(
+    string Username,
+    string MaskedPhrase,
+    int CardsEarned,
+    int BoardLapsCompleted,
+    int SmashCorrectAnswers);
+
+/// <summary>A letter card awarded to one player.</summary>
+public sealed record CardAwardResponse(int Sequence, string Username, string Letter, string Reason);
+
+/// <summary>Current timed Smash the Answer round, with only the requesting player's entries.</summary>
+public sealed record SmashRoundResponse(
+    int RoundNumber,
+    string Prompt,
+    DateTimeOffset EndsAtUtc,
+    IReadOnlyList<string> MyAnswers,
+    int MyCorrectCount);
+
 /// <summary>Current game state visible to a host or player.</summary>
 public sealed record GameSnapshotResponse(
     string Pin,
@@ -194,7 +255,12 @@ public sealed record GameSnapshotResponse(
     string BoardTitle = "The Showdown",
     BoardLayout BoardLayout = BoardLayout.Track,
     BoardStyle BoardStyle = BoardStyle.Aurora,
-    int RollSequence = 0);
+    int RollSequence = 0,
+    bool PhrasePuzzleEnabled = false,
+    IReadOnlyList<PhrasePlayerResponse>? PhrasePlayers = null,
+    IReadOnlyList<CardAwardResponse>? CardAwards = null,
+    SmashRoundResponse? SmashRound = null,
+    DateTimeOffset? NextCardBonusAtUtc = null);
 
 internal static class BoardArtworkLibrary
 {
@@ -285,8 +351,42 @@ public enum GameStatus
     BoardAction,
     /// <summary>The answer is revealed and the host may continue.</summary>
     Reveal,
+    /// <summary>Players are submitting answers in a timed Smash the Answer round.</summary>
+    SmashAnswer,
     /// <summary>All questions have been completed.</summary>
     Finished
+}
+
+internal static class PhrasePuzzleValidator
+{
+    public static string? Validate(PhrasePuzzleRequest? puzzle)
+    {
+        if (puzzle is null)
+            return null;
+        if (string.IsNullOrWhiteSpace(puzzle.Phrase) ||
+            puzzle.Phrase.Length > 100 ||
+            puzzle.Phrase[0] == ' ' ||
+            puzzle.Phrase[^1] == ' ' ||
+            puzzle.Phrase.Any(character => !char.IsAsciiLetter(character) && character != ' ') ||
+            puzzle.Phrase.Contains("  ", StringComparison.Ordinal))
+            return "The secret phrase must contain only letters and single spaces, with no leading or trailing spaces.";
+        if (puzzle.LapsBeforeSmash is < 1 or > 10)
+            return "Choose between 1 and 10 board laps before Smash the Answer.";
+        if (puzzle.SmashRounds is null || puzzle.SmashRounds.Count is < 1 or > 20)
+            return "Add between 1 and 20 Smash the Answer rounds.";
+        foreach (var round in puzzle.SmashRounds)
+        {
+            if (round is null || string.IsNullOrWhiteSpace(round.Prompt) || round.Prompt.Trim().Length > 160)
+                return "Every Smash the Answer round needs a prompt of 160 characters or fewer.";
+            if (round.AcceptedAnswers is null || round.AcceptedAnswers.Count is < 1 or > 100 ||
+                round.AcceptedAnswers.Any(answer => string.IsNullOrWhiteSpace(answer) || answer.Trim().Length > 80))
+                return "Every Smash the Answer round needs between 1 and 100 accepted answers, each 80 characters or fewer.";
+            if (round.AcceptedAnswers.Select(answer => answer.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase).Count() != round.AcceptedAnswers.Count)
+                return "Smash the Answer responses must be unique, ignoring capitalization.";
+        }
+        return null;
+    }
 }
 
 internal static class ShowConfigurationValidator
