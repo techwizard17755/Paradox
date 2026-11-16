@@ -1,6 +1,5 @@
 **/bin/
 **/obj/
-dist/
 .vs/
 .git/
 **/data/
