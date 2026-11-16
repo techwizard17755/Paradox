@@ -20,7 +20,7 @@ Deploy this repository as a Render Blueprint using `render.yaml`. Render builds 
 
 - Open **Join a game** and enter the host's six-digit PIN.
 - Open **Create** to make a quiz, digital board game, or Custom show.
-- Choose from 14 editable show templates, including board, survey, typed-answer, and Rarest Answer Wins examples.
+- Choose from 14 editable show templates, each starting with at least 10 questions, including board, survey, typed-answer, and Rarest Answer Wins examples.
 - In a board editor, choose one of eight built-in tile illustrations or upload your own image.
 - For any typed-answer question, enable **Rarest Answer Wins scoring** to assign 1–1,000 points to each accepted answer; those values are shown to players after the reveal.
 - Incorrect answers on board question spaces return the active player to the space they started their roll from. Timed-out questions do not move the player back.

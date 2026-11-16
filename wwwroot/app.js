@@ -97,6 +97,135 @@ function makeTemplateBoard(layout = "Track") {
   return { tiles, layout };
 }
 
+const templateQuestionAdditions = {
+  "rarest-answer-wins": [
+    typedTemplateQuestion("Name a country in Africa.", "Geography", ["Kenya", "Egypt", "Ghana"], [22, 8, 15]),
+    typedTemplateQuestion("Name a European capital.", "Geography", ["Lisbon", "Rome", "Oslo"], [19, 12, 27]),
+    typedTemplateQuestion("Name an ocean.", "Geography", ["Pacific", "Indian", "Arctic"], [5, 16, 29]),
+    typedTemplateQuestion("Name a planet in our solar system.", "Space", ["Mercury", "Neptune", "Saturn"], [25, 30, 11]),
+    typedTemplateQuestion("Name a language spoken in Europe.", "Culture", ["Spanish", "Icelandic", "German"], [9, 28, 17]),
+    typedTemplateQuestion("Name a country in South America.", "Geography", ["Brazil", "Peru", "Chile"], [4, 23, 14]),
+    typedTemplateQuestion("Name a famous world landmark.", "Landmarks", ["Great Wall of China", "Machu Picchu", "Colosseum"], [6, 26, 13])
+  ],
+  "world-explorer": [
+    choiceTemplateQuestion("Which country is home to the city of Marrakech?", "Countries", ["Morocco", "Greece", "India", "Mexico"], 0),
+    choiceTemplateQuestion("Which river flows through London?", "Rivers", ["Thames", "Seine", "Danube", "Nile"], 0),
+    choiceTemplateQuestion("Which country is shaped like a boot?", "Countries", ["Italy", "Norway", "Thailand", "Chile"], 0),
+    choiceTemplateQuestion("What is the capital of Canada?", "Capitals", ["Ottawa", "Toronto", "Vancouver", "Montreal"], 0),
+    choiceTemplateQuestion("Which desert covers much of northern Africa?", "Landforms", ["Sahara", "Gobi", "Atacama", "Mojave"], 0),
+    choiceTemplateQuestion("Which country is home to the ancient city of Petra?", "Landmarks", ["Jordan", "Turkey", "India", "Peru"], 0),
+    choiceTemplateQuestion("Which continent is the Amazon rainforest mostly in?", "Landforms", ["South America", "Africa", "Asia", "Europe"], 0)
+  ],
+  "space-odyssey": [
+    choiceTemplateQuestion("Which planet is closest to the Sun?", "Planets", ["Mercury", "Earth", "Mars", "Neptune"], 0),
+    choiceTemplateQuestion("What is Earth's natural satellite?", "The Moon", ["The Moon", "Phobos", "Titan", "Europa"], 0),
+    choiceTemplateQuestion("Which planet is the largest in our solar system?", "Planets", ["Jupiter", "Saturn", "Earth", "Uranus"], 0),
+    choiceTemplateQuestion("What do we call a rocky object that enters Earth's atmosphere?", "Space objects", ["Meteor", "Comet", "Galaxy", "Asteroid belt"], 0),
+    choiceTemplateQuestion("Which star is closest to Earth?", "Stars", ["The Sun", "Sirius", "Polaris", "Vega"], 0),
+    choiceTemplateQuestion("What galaxy contains our solar system?", "Galaxies", ["The Milky Way", "Andromeda", "Whirlpool", "Sombrero"], 0),
+    choiceTemplateQuestion("Which planet is famous for its Great Red Spot?", "Planets", ["Jupiter", "Venus", "Mercury", "Earth"], 0)
+  ],
+  "movie-night": [
+    choiceTemplateQuestion("In The Wizard of Oz, what color is the road Dorothy follows?", "Classics", ["Yellow", "Red", "Blue", "Green"], 0),
+    choiceTemplateQuestion("Which animated film features a kingdom called Arendelle?", "Animation", ["Frozen", "Moana", "Coco", "Tangled"], 0),
+    choiceTemplateQuestion("What kind of animal is Dumbo?", "Animation", ["Elephant", "Mouse", "Dog", "Horse"], 0),
+    choiceTemplateQuestion("Which superhero is associated with the fictional city of Gotham?", "Heroes", ["Batman", "Spider-Man", "Iron Man", "Thor"], 0),
+    choiceTemplateQuestion("In The Lion King, what kind of animal is Simba?", "Animation", ["Lion", "Tiger", "Leopard", "Cheetah"], 0),
+    choiceTemplateQuestion("Which movie series features a school called Hogwarts?", "Fantasy", ["Harry Potter", "The Hunger Games", "The Chronicles of Narnia", "The Maze Runner"], 0),
+    choiceTemplateQuestion("Which instrument does Miguel play in Coco?", "Animation", ["Guitar", "Piano", "Violin", "Trumpet"], 0)
+  ],
+  "soundcheck": [
+    choiceTemplateQuestion("Which instrument is played by striking its keys with hammers?", "Instruments", ["Piano", "Clarinet", "Harp", "Trombone"], 0),
+    choiceTemplateQuestion("How many beats does a whole note usually last in common time?", "Rhythm", ["Four", "One", "Two", "Eight"], 0),
+    choiceTemplateQuestion("Which brass instrument is often associated with a slide?", "Instruments", ["Trombone", "Trumpet", "Tuba", "French horn"], 0),
+    choiceTemplateQuestion("Which symbol raises a note by one semitone?", "Music theory", ["Sharp", "Flat", "Natural", "Rest"], 0),
+    choiceTemplateQuestion("What is the highest common adult singing voice?", "Voices", ["Soprano", "Bass", "Tenor", "Baritone"], 0),
+    choiceTemplateQuestion("Which instrument is a percussion instrument?", "Instruments", ["Drum", "Cello", "Oboe", "Harp"], 0),
+    choiceTemplateQuestion("What does a conductor lead?", "Orchestra", ["An ensemble of musicians", "A solo dance", "A recording studio", "A song's lyrics"], 0)
+  ],
+  "science-lab": [
+    choiceTemplateQuestion("Which part of a plant usually absorbs water from soil?", "Biology", ["Roots", "Petals", "Fruit", "Seeds"], 0),
+    choiceTemplateQuestion("What is the chemical symbol for oxygen?", "Chemistry", ["O", "Ox", "Og", "Oy"], 0),
+    choiceTemplateQuestion("Which state of matter has a fixed shape and volume?", "Chemistry", ["Solid", "Liquid", "Gas", "Plasma"], 0),
+    choiceTemplateQuestion("Which organ pumps blood around the human body?", "Biology", ["Heart", "Lung", "Stomach", "Kidney"], 0),
+    choiceTemplateQuestion("What is the nearest star to Earth?", "Space", ["The Sun", "Sirius", "Polaris", "Proxima Centauri"], 0),
+    choiceTemplateQuestion("Which simple machine is a ramp?", "Physics", ["Inclined plane", "Pulley", "Lever", "Wheel and axle"], 0),
+    choiceTemplateQuestion("What do we call an animal that eats both plants and animals?", "Biology", ["Omnivore", "Herbivore", "Carnivore", "Producer"], 0)
+  ],
+  "time-machine": [
+    choiceTemplateQuestion("Which civilization is associated with the city of Rome?", "Ancient world", ["Romans", "Aztecs", "Incas", "Mongols"], 0),
+    choiceTemplateQuestion("Which invention is Johannes Gutenberg famous for improving in Europe?", "Inventions", ["Printing press", "Steam engine", "Telephone", "Compass"], 0),
+    choiceTemplateQuestion("The Renaissance began in which present-day country?", "Art history", ["Italy", "Canada", "Japan", "Egypt"], 0),
+    choiceTemplateQuestion("Which ship carried Charles Darwin on his famous voyage?", "Exploration", ["HMS Beagle", "Mayflower", "Endeavour", "Victory"], 0),
+    choiceTemplateQuestion("Which ancient people built the city of Petra?", "Ancient world", ["Nabataeans", "Vikings", "Spartans", "Phoenicians"], 0),
+    choiceTemplateQuestion("Who was the first person to walk on the Moon?", "Space history", ["Neil Armstrong", "Yuri Gagarin", "Buzz Aldrin", "John Glenn"], 0),
+    choiceTemplateQuestion("Which wall divided Berlin during much of the Cold War?", "Modern history", ["Berlin Wall", "Hadrian's Wall", "Great Wall", "Western Wall"], 0)
+  ],
+  "food-frenzy": [
+    { ...choiceTemplateQuestion("Pick a snack for a movie night.", "Snacks", ["Popcorn", "Nachos", "Fruit", "Chocolate"]), type: "Survey" },
+    { ...choiceTemplateQuestion("Which flavor would you choose for ice cream?", "Dessert", ["Vanilla", "Chocolate", "Strawberry", "Mint"]), type: "Survey" },
+    { ...choiceTemplateQuestion("Choose a breakfast to start your day.", "Breakfast", ["Pancakes", "Toast", "Yogurt", "Oatmeal"]), type: "Survey" },
+    { ...choiceTemplateQuestion("Which drink would you serve at a party?", "Drinks", ["Lemonade", "Juice", "Sparkling water", "Hot chocolate"]), type: "Survey" },
+    { ...choiceTemplateQuestion("Pick a topping for a baked potato.", "Food", ["Cheese", "Beans", "Sour cream", "Chives"]), type: "Survey" },
+    { ...choiceTemplateQuestion("Which fruit belongs in a fruit salad?", "Fruit", ["Mango", "Apple", "Grapes", "Pineapple"]), type: "Survey" },
+    { ...choiceTemplateQuestion("Choose a meal for a picnic.", "Meals", ["Sandwiches", "Pasta salad", "Wraps", "Sushi"]), type: "Survey" }
+  ],
+  "quickfire-numbers": [
+    typedTemplateQuestion("How many sides does an octagon have?", "Math", ["8"]),
+    typedTemplateQuestion("What is 12 × 12?", "Math", ["144"]),
+    typedTemplateQuestion("How many days are in a leap year?", "Time", ["366"]),
+    typedTemplateQuestion("What is half of 90?", "Math", ["45"]),
+    typedTemplateQuestion("How many degrees are in a right angle?", "Geometry", ["90", "90 degrees"]),
+    typedTemplateQuestion("What is 100 divided by 4?", "Math", ["25"]),
+    typedTemplateQuestion("How many seconds are in one minute?", "Time", ["60"])
+  ],
+  "brain-teasers": [
+    typedTemplateQuestion("What has a neck but no head?", "Riddles", ["A bottle", "Bottle"]),
+    typedTemplateQuestion("What gets wetter as it dries?", "Riddles", ["A towel", "Towel"]),
+    typedTemplateQuestion("What has one eye but cannot see?", "Riddles", ["A needle", "Needle"]),
+    typedTemplateQuestion("What has many teeth but cannot bite?", "Riddles", ["A comb", "Comb"]),
+    typedTemplateQuestion("What can travel around the world while staying in one corner?", "Riddles", ["A stamp", "Stamp"]),
+    typedTemplateQuestion("What has keys but no locks and space but no room?", "Riddles", ["A keyboard", "Keyboard"]),
+    typedTemplateQuestion("What has cities but no houses, rivers but no water, and roads but no cars?", "Riddles", ["A map", "Map"])
+  ],
+  "treasure-trail": [
+    choiceTemplateQuestion("Which material is attracted to a magnet?", "Science", ["Iron", "Glass", "Paper", "Wood"], 0),
+    choiceTemplateQuestion("Which tool helps you find direction using a magnetic needle?", "Navigation", ["Compass", "Hourglass", "Thermometer", "Telescope"], 0),
+    choiceTemplateQuestion("Which gemstone is usually green?", "Treasures", ["Emerald", "Ruby", "Amethyst", "Garnet"], 0),
+    choiceTemplateQuestion("What is a map key used for?", "Navigation", ["Explaining map symbols", "Measuring temperature", "Predicting weather", "Telling time"], 0),
+    choiceTemplateQuestion("Which metal is liquid at typical room temperature?", "Science", ["Mercury", "Gold", "Copper", "Silver"], 0),
+    choiceTemplateQuestion("Which direction is opposite east?", "Navigation", ["West", "North", "South", "Northeast"], 0),
+    choiceTemplateQuestion("What would a treasure map most likely mark with an X?", "Adventure", ["A marked location", "The map's scale", "A compass direction", "A mountain height"], 0)
+  ],
+  "snakes-and-ladders": [
+    choiceTemplateQuestion("What is the largest land animal?", "Nature", ["African elephant", "Giraffe", "Hippopotamus", "Rhinoceros"], 0),
+    choiceTemplateQuestion("Which animal is known for changing color to blend in?", "Nature", ["Chameleon", "Penguin", "Dolphin", "Kangaroo"], 0),
+    choiceTemplateQuestion("What is a baby frog called?", "Nature", ["Tadpole", "Cub", "Calf", "Chick"], 0),
+    choiceTemplateQuestion("Which of these is a flightless bird?", "Nature", ["Penguin", "Eagle", "Swallow", "Hawk"], 0),
+    choiceTemplateQuestion("What do caterpillars turn into?", "Nature", ["Butterflies or moths", "Frogs", "Beetles", "Spiders"], 0),
+    choiceTemplateQuestion("Which mammal can fly using true powered flight?", "Nature", ["Bat", "Flying squirrel", "Lemur", "Sugar glider"], 0),
+    choiceTemplateQuestion("What is the name for a group of wolves?", "Nature", ["A pack", "A flock", "A school", "A colony"], 0)
+  ],
+  "classroom-combo": [
+    choiceTemplateQuestion("What is 15 + 7?", "Math", ["22", "21", "23", "25"], 0),
+    choiceTemplateQuestion("Which planet is known for its prominent rings?", "Space", ["Saturn", "Mercury", "Earth", "Mars"], 0),
+    choiceTemplateQuestion("Which word is a verb?", "Language", ["Jump", "Blue", "Quietly", "Table"], 0),
+    choiceTemplateQuestion("How many sides does a pentagon have?", "Math", ["Five", "Four", "Six", "Eight"], 0),
+    choiceTemplateQuestion("Which ocean lies between Africa and Australia?", "Geography", ["Indian Ocean", "Arctic Ocean", "Atlantic Ocean", "Southern Ocean"], 0),
+    choiceTemplateQuestion("What do humans breathe in to survive?", "Science", ["Oxygen", "Helium", "Carbon monoxide", "Methane"], 0),
+    choiceTemplateQuestion("Which punctuation mark ends a direct question?", "Language", ["Question mark", "Comma", "Colon", "Apostrophe"], 0)
+  ],
+  "audience-poll": [
+    { ...choiceTemplateQuestion("Which place would you most like to explore?", "Dream trip", ["A rainforest", "A big city", "A quiet island", "A mountain trail"]), type: "Survey" },
+    choiceTemplateQuestion("Which planet is known as the Red Planet?", "Space", ["Mars", "Venus", "Jupiter", "Mercury"], 0),
+    { ...choiceTemplateQuestion("Pick a theme for the next game night.", "Audience vote", ["Mystery", "Space", "Travel", "Food"]), type: "Survey" },
+    choiceTemplateQuestion("How many colors are traditionally named in a rainbow?", "Science", ["Seven", "Five", "Six", "Eight"], 0),
+    { ...choiceTemplateQuestion("Which team role would you choose?", "Big questions", ["The strategist", "The storyteller", "The explorer", "The wildcard"]), type: "Survey" },
+    { ...choiceTemplateQuestion("Choose a sound for a game-show victory.", "Audience vote", ["A bell", "A drumroll", "A cheer", "A trumpet"]), type: "Survey" },
+    choiceTemplateQuestion("Which shape has four equal sides and four right angles?", "Math", ["Square", "Rectangle", "Triangle", "Trapezoid"], 0)
+  ]
+};
+
 const showTemplates = [
   {
     id: "rarest-answer-wins", title: "Rarest Answer Wins", category: "Secret scoring",
@@ -104,7 +233,8 @@ const showTemplates = [
     mode: "Quiz", theme: "coral", questions: [
       typedTemplateQuestion("Name a place in Africa or Europe.", "Geography", ["Germany", "Africa", "France"], [24, 3, 18]),
       typedTemplateQuestion("Name a continent.", "Geography", ["Africa", "Asia", "Europe"], [3, 14, 9]),
-      typedTemplateQuestion("Name a planet.", "Space", ["Mars", "Venus", "Jupiter"], [21, 8, 15])
+      typedTemplateQuestion("Name a planet.", "Space", ["Mars", "Venus", "Jupiter"], [21, 8, 15]),
+      ...templateQuestionAdditions["rarest-answer-wins"]
     ]
   },
   {
@@ -113,7 +243,8 @@ const showTemplates = [
     mode: "Quiz", theme: "ocean", subjectWheelEnabled: true, questions: [
       choiceTemplateQuestion("Which city is the capital of Japan?", "Capitals", ["Tokyo", "Kyoto", "Osaka", "Nagoya"], 0),
       choiceTemplateQuestion("Which is the world's largest ocean?", "Oceans", ["Atlantic", "Indian", "Pacific", "Arctic"], 2),
-      choiceTemplateQuestion("The Eiffel Tower is in which city?", "Landmarks", ["Rome", "Paris", "Madrid", "Lisbon"], 1)
+      choiceTemplateQuestion("The Eiffel Tower is in which city?", "Landmarks", ["Rome", "Paris", "Madrid", "Lisbon"], 1),
+      ...templateQuestionAdditions["world-explorer"]
     ]
   },
   {
@@ -122,7 +253,8 @@ const showTemplates = [
     mode: "Quiz", theme: "violet", subjectWheelEnabled: true, questions: [
       choiceTemplateQuestion("Which planet is known as the Red Planet?", "Planets", ["Mars", "Venus", "Neptune", "Mercury"], 0),
       choiceTemplateQuestion("What is at the center of our solar system?", "Solar system", ["Earth", "The Sun", "Jupiter", "The Moon"], 1),
-      choiceTemplateQuestion("Which planet has the most visible rings?", "Planets", ["Saturn", "Mars", "Earth", "Venus"], 0)
+      choiceTemplateQuestion("Which planet has the most visible rings?", "Planets", ["Saturn", "Mars", "Earth", "Venus"], 0),
+      ...templateQuestionAdditions["space-odyssey"]
     ]
   },
   {
@@ -131,7 +263,8 @@ const showTemplates = [
     mode: "Quiz", theme: "sunset", questions: [
       choiceTemplateQuestion("What is the name of the cowboy in Toy Story?", "Animation", ["Woody", "Buzz", "Rex", "Andy"], 0),
       choiceTemplateQuestion("Which character is known as the Dark Knight?", "Heroes", ["Superman", "Batman", "Flash", "Robin"], 1),
-      choiceTemplateQuestion("In Finding Nemo, what kind of fish is Nemo?", "Animation", ["Clownfish", "Pufferfish", "Goldfish", "Blue tang"], 0)
+      choiceTemplateQuestion("In Finding Nemo, what kind of fish is Nemo?", "Animation", ["Clownfish", "Pufferfish", "Goldfish", "Blue tang"], 0),
+      ...templateQuestionAdditions["movie-night"]
     ]
   },
   {
@@ -140,7 +273,8 @@ const showTemplates = [
     mode: "Quiz", theme: "coral", subjectWheelEnabled: true, questions: [
       choiceTemplateQuestion("Which instrument has keys, pedals, and strings?", "Instruments", ["Piano", "Flute", "Drum", "Trumpet"], 0),
       choiceTemplateQuestion("How many strings does a standard guitar usually have?", "Instruments", ["Four", "Five", "Six", "Eight"], 2),
-      choiceTemplateQuestion("Which family does the violin belong to?", "Orchestra", ["Strings", "Brass", "Woodwind", "Percussion"], 0)
+      choiceTemplateQuestion("Which family does the violin belong to?", "Orchestra", ["Strings", "Brass", "Woodwind", "Percussion"], 0),
+      ...templateQuestionAdditions["soundcheck"]
     ]
   },
   {
@@ -149,7 +283,8 @@ const showTemplates = [
     mode: "Quiz", theme: "citrus", subjectWheelEnabled: true, questions: [
       choiceTemplateQuestion("What gas do plants absorb from the air?", "Biology", ["Oxygen", "Carbon dioxide", "Helium", "Hydrogen"], 1),
       choiceTemplateQuestion("What force pulls objects toward Earth?", "Physics", ["Magnetism", "Gravity", "Friction", "Pressure"], 1),
-      choiceTemplateQuestion("At what temperature does water freeze in Celsius?", "Chemistry", ["0°", "10°", "32°", "100°"], 0)
+      choiceTemplateQuestion("At what temperature does water freeze in Celsius?", "Chemistry", ["0°", "10°", "32°", "100°"], 0),
+      ...templateQuestionAdditions["science-lab"]
     ]
   },
   {
@@ -158,7 +293,8 @@ const showTemplates = [
     mode: "Quiz", theme: "sunset", questions: [
       choiceTemplateQuestion("Which ancient civilization built the pyramids at Giza?", "Ancient world", ["Egyptians", "Romans", "Vikings", "Maya"], 0),
       choiceTemplateQuestion("What was the first name of Shakespeare?", "Writers", ["William", "Thomas", "Henry", "Edward"], 0),
-      choiceTemplateQuestion("The first Moon landing happened in which decade?", "Space history", ["1950s", "1960s", "1970s", "1980s"], 1)
+      choiceTemplateQuestion("The first Moon landing happened in which decade?", "Space history", ["1950s", "1960s", "1970s", "1980s"], 1),
+      ...templateQuestionAdditions["time-machine"]
     ]
   },
   {
@@ -167,7 +303,8 @@ const showTemplates = [
     mode: "Quiz", theme: "citrus", questions: [
       { ...choiceTemplateQuestion("Pick your ideal pizza topping.", "Food", ["Mushrooms", "Pineapple", "Olives", "Pepperoni"]), type: "Survey" },
       { ...choiceTemplateQuestion("Choose a dessert for the finale.", "Dessert", ["Ice cream", "Cake", "Fruit", "Cookies"]), type: "Survey" },
-      { ...choiceTemplateQuestion("Which meal would you try first?", "Food", ["Sushi", "Tacos", "Curry", "Pasta"]), type: "Survey" }
+      { ...choiceTemplateQuestion("Which meal would you try first?", "Food", ["Sushi", "Tacos", "Curry", "Pasta"]), type: "Survey" },
+      ...templateQuestionAdditions["food-frenzy"]
     ]
   },
   {
@@ -176,7 +313,8 @@ const showTemplates = [
     mode: "Quiz", theme: "ocean", questions: [
       typedTemplateQuestion("How many sides does a hexagon have?", "Math", ["6"]),
       typedTemplateQuestion("What is 9 × 7?", "Math", ["63"]),
-      typedTemplateQuestion("How many minutes are in one hour?", "Math", ["60"])
+      typedTemplateQuestion("How many minutes are in one hour?", "Math", ["60"]),
+      ...templateQuestionAdditions["quickfire-numbers"]
     ]
   },
   {
@@ -185,7 +323,8 @@ const showTemplates = [
     mode: "Quiz", theme: "violet", questions: [
       typedTemplateQuestion("What has hands but cannot clap?", "Riddles", ["A clock", "Clock"]),
       typedTemplateQuestion("What word becomes shorter when you add two letters?", "Wordplay", ["Short"]),
-      typedTemplateQuestion("What has a face and two hands but no arms or legs?", "Riddles", ["A clock", "Clock"])
+      typedTemplateQuestion("What has a face and two hands but no arms or legs?", "Riddles", ["A clock", "Clock"]),
+      ...templateQuestionAdditions["brain-teasers"]
     ]
   },
   {
@@ -195,7 +334,8 @@ const showTemplates = [
     questions: [
       choiceTemplateQuestion("Which metal is often used to make coins?", "Treasures", ["Gold", "Wood", "Cotton", "Glass"], 0),
       choiceTemplateQuestion("Which direction does the Sun rise from?", "Navigation", ["East", "West", "North", "South"], 0),
-      typedTemplateQuestion("Name a gemstone.", "Treasures", ["Ruby", "Emerald", "Sapphire"])
+      typedTemplateQuestion("Name a gemstone.", "Treasures", ["Ruby", "Emerald", "Sapphire"]),
+      ...templateQuestionAdditions["treasure-trail"]
     ]
   },
   {
@@ -205,7 +345,8 @@ const showTemplates = [
     questions: [
       choiceTemplateQuestion("Which animal is the tallest in the world?", "Nature", ["Giraffe", "Elephant", "Ostrich", "Camel"], 0),
       choiceTemplateQuestion("How many legs does a spider have?", "Nature", ["Six", "Eight", "Ten", "Twelve"], 1),
-      choiceTemplateQuestion("What do bees make?", "Nature", ["Honey", "Milk", "Silk", "Wax paper"], 0)
+      choiceTemplateQuestion("What do bees make?", "Nature", ["Honey", "Milk", "Silk", "Wax paper"], 0),
+      ...templateQuestionAdditions["snakes-and-ladders"]
     ]
   },
   {
@@ -215,7 +356,8 @@ const showTemplates = [
     boardTitle: "Classroom Quest", questions: [
       choiceTemplateQuestion("Which shape has three sides?", "Math", ["Triangle", "Square", "Circle", "Hexagon"], 0),
       typedTemplateQuestion("What is the name of our home planet?", "Space", ["Earth"]),
-      choiceTemplateQuestion("Which is a mammal?", "Nature", ["Dolphin", "Shark", "Trout", "Octopus"], 0)
+      choiceTemplateQuestion("Which is a mammal?", "Nature", ["Dolphin", "Shark", "Trout", "Octopus"], 0),
+      ...templateQuestionAdditions["classroom-combo"]
     ]
   },
   {
@@ -224,7 +366,8 @@ const showTemplates = [
     mode: "Custom", theme: "violet", subjectWheelEnabled: true, questions: [
       { ...choiceTemplateQuestion("Which superpower would you pick?", "Big questions", ["Flying", "Invisibility", "Time travel", "Super strength"]), type: "Survey" },
       choiceTemplateQuestion("Which planet is closest to the Sun?", "Space", ["Mercury", "Venus", "Earth", "Mars"], 0),
-      { ...choiceTemplateQuestion("Choose the best game-night snack.", "Audience vote", ["Popcorn", "Chips", "Fruit", "Cookies"]), type: "Survey" }
+      { ...choiceTemplateQuestion("Choose the best game-night snack.", "Audience vote", ["Popcorn", "Chips", "Fruit", "Cookies"]), type: "Survey" },
+      ...templateQuestionAdditions["audience-poll"]
     ]
   }
 ];
@@ -260,7 +403,8 @@ function post(url, body, headers = {}) {
   return api(url, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body), headers });
 }
 
-function setNav(active) {
+function setNav(active, view = routeFor().page) {
+  document.body.dataset.page = view;
   document.querySelectorAll(".nav-link").forEach(link => {
     const isActive = link.dataset.page === active;
     link.classList.toggle("active", isActive);
@@ -481,11 +625,11 @@ function renderCreateChooser() {
         <div><p class="eyebrow">READY-MADE STARTING POINTS</p><h2 id="template-library-heading">Pick a show template</h2></div>
         <span>${showTemplates.length} editable templates</span>
       </div>
-      <p class="template-library-note">Every template opens in the regular editor. Change the questions, scoring, colors, board, and wheel before you host.</p>
+      <p class="template-library-note">Every template starts with at least 10 ready-to-edit questions. Change the scoring, colors, board, and wheel before you host.</p>
       <div class="template-grid">
         ${showTemplates.map(template => `
           <article class="template-card">
-            <span class="template-category">${escapeHtml(template.category)}</span>
+            <div class="template-card-meta"><span class="template-category">${escapeHtml(template.category)}</span><span class="template-question-count">${template.questions.length} questions</span></div>
             <h3>${escapeHtml(template.title)}</h3>
             <p>${escapeHtml(template.description)}</p>
             <button type="button" class="secondary-btn" data-action="use-template" data-template="${template.id}">Edit this template <span aria-hidden="true">→</span></button>
@@ -1151,7 +1295,7 @@ function renderBoardImageLibrary() {
 function renderUsername(pin) {
   stopPolling();
   setTheme();
-  setNav("join");
+  setNav("join", "username");
   app.innerHTML = `
     <div class="username-card join-card">
       <span class="card-kicker">PIN ${escapeHtml(pin)} is ready</span>

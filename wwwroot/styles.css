@@ -618,3 +618,813 @@ h1, h2, h3 { font-family: "Space Grotesk", sans-serif; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+body[data-page]:not([data-page="join"]) {
+  color-scheme: light;
+  --ink: #1d2340;
+  --muted: #687087;
+  --dim: #858ba0;
+  --night: #f0f2f7;
+  --panel: #ffffff;
+  --panel-light: #f6f7fb;
+  --line: rgba(36, 44, 75, .12);
+  --purple: #6258e8;
+  --violet: #4c43d2;
+  --lime: #c4f27b;
+  --coral: #ed6d76;
+  --cyan: #28a99f;
+  color: var(--ink);
+  background:
+    radial-gradient(ellipse at 86% 0, rgba(102, 91, 231, .1), transparent 34rem),
+    radial-gradient(ellipse at 0 42%, rgba(196, 242, 123, .11), transparent 27rem),
+    #f2f4f8;
+}
+
+body[data-page]:not([data-page="join"]) .topbar {
+  width: min(1320px, calc(100% - 64px));
+  height: 82px;
+  border-bottom-color: rgba(36, 44, 75, .09);
+}
+
+body[data-page]:not([data-page="join"]) .brand {
+  gap: 12px;
+  color: #242a49;
+  font-size: 22px;
+}
+
+body[data-page]:not([data-page="join"]) .brand-mark {
+  width: 38px;
+  height: 38px;
+  border-radius: 13px;
+  background: #5d54df;
+  color: #fff;
+  box-shadow: 0 7px 18px rgba(93, 84, 223, .22);
+}
+
+body[data-page]:not([data-page="join"]) .main-nav {
+  gap: 4px;
+  padding: 5px;
+  border-color: rgba(36, 44, 75, .08);
+  border-radius: 16px;
+  background: rgba(255,255,255,.82);
+  box-shadow: 0 5px 18px rgba(43, 49, 77, .05);
+}
+
+body[data-page]:not([data-page="join"]) .nav-link {
+  padding: 10px 15px;
+  border-radius: 11px;
+  color: #71778c;
+}
+
+body[data-page]:not([data-page="join"]) .nav-link:hover {
+  background: #f0efff;
+  color: #4139b4;
+}
+
+body[data-page]:not([data-page="join"]) .nav-link.active {
+  background: #272d4d;
+  color: #fff;
+}
+
+body[data-page]:not([data-page="join"]) .topbar-note {
+  color: #737990;
+}
+
+body[data-page]:not([data-page="join"]) .online-dot {
+  background: #35b69c;
+  box-shadow: 0 0 12px rgba(53,182,156,.42);
+}
+
+body[data-page]:not([data-page="join"]) .page-shell {
+  width: min(1320px, calc(100% - 64px));
+  min-height: calc(100vh - 147px);
+  padding: 48px 0 76px;
+}
+
+body[data-page]:not([data-page="join"]) .footer {
+  width: min(1320px, calc(100% - 64px));
+  border-top-color: rgba(36, 44, 75, .1);
+  color: #83889a;
+}
+
+body[data-page]:not([data-page="join"]) .footer span:first-child {
+  color: #555d78;
+}
+
+body[data-page]:not([data-page="join"]) .eyebrow {
+  width: fit-content;
+  margin-bottom: 14px;
+  padding: 8px 11px;
+  border: 1px solid rgba(98,88,232,.16);
+  border-radius: 99px;
+  background: rgba(255,255,255,.72);
+  color: #554bd1;
+  font-size: 10px;
+  letter-spacing: 1.25px;
+}
+
+body[data-page]:not([data-page="join"]) .content-heading {
+  margin-bottom: 29px;
+}
+
+body[data-page]:not([data-page="join"]) .content-heading h1 {
+  margin-bottom: 9px;
+  color: #202644;
+  font-size: clamp(38px, 5vw, 56px);
+  letter-spacing: -2.8px;
+}
+
+body[data-page]:not([data-page="join"]) .content-heading p:not(.eyebrow) {
+  color: #697087;
+  font-size: 14px;
+}
+
+body[data-page]:not([data-page="join"]) .primary-btn {
+  background: #292f50;
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(38,45,79,.14);
+}
+
+body[data-page]:not([data-page="join"]) .primary-btn:hover {
+  background: #404779;
+  filter: none;
+}
+
+body[data-page]:not([data-page="join"]) .secondary-btn,
+body[data-page]:not([data-page="join"]) .quiet-btn {
+  border-color: rgba(42,49,81,.13);
+  background: #fff;
+  color: #515875;
+}
+
+body[data-page]:not([data-page="join"]) .secondary-btn:hover,
+body[data-page]:not([data-page="join"]) .quiet-btn:hover {
+  border-color: rgba(98,88,232,.28);
+  background: #f6f5ff;
+  color: #453bbd;
+}
+
+body[data-page]:not([data-page="join"]) .show-mode-section,
+body[data-page]:not([data-page="join"]) .template-library,
+body[data-page]:not([data-page="join"]) .mode-settings-panel,
+body[data-page]:not([data-page="join"]) .builder-main,
+body[data-page]:not([data-page="join"]) .builder-aside,
+body[data-page]:not([data-page="join"]) .game-panel,
+body[data-page]:not([data-page="join"]) .waiting-panel {
+  border: 1px solid rgba(43,51,84,.1);
+  border-radius: 22px;
+  background: rgba(255,255,255,.9);
+  box-shadow: 0 18px 48px rgba(45,52,81,.065);
+}
+
+body[data-page]:not([data-page="join"]) .show-mode-section,
+body[data-page]:not([data-page="join"]) .template-library {
+  padding: 27px;
+}
+
+body[data-page]:not([data-page="join"]) .show-mode-heading h2,
+body[data-page]:not([data-page="join"]) .template-library-heading h2 {
+  color: #242a49;
+  font-size: 23px;
+}
+
+body[data-page]:not([data-page="join"]) .show-mode-heading p,
+body[data-page]:not([data-page="join"]) .template-library-note {
+  color: #71778c;
+  font-size: 12px;
+}
+
+body[data-page]:not([data-page="join"]) .show-mode-options {
+  gap: 13px;
+  margin-top: 21px;
+}
+
+body[data-page]:not([data-page="join"]) .show-mode-card {
+  min-height: 182px;
+  gap: 12px;
+  padding: 18px;
+  border-color: rgba(51,60,98,.12);
+  border-radius: 17px;
+  background: linear-gradient(145deg, #fff, #f8f8fc);
+  box-shadow: 0 6px 17px rgba(43,49,77,.035);
+}
+
+body[data-page]:not([data-page="join"]) .show-mode-card:hover {
+  border-color: rgba(98,88,232,.4);
+  box-shadow: 0 13px 28px rgba(70,65,152,.1);
+}
+
+body[data-page]:not([data-page="join"]) .show-mode-card.selected {
+  border-color: #6960e9;
+  background: #f4f2ff;
+}
+
+body[data-page]:not([data-page="join"]) .show-mode-icon {
+  width: 39px;
+  height: 39px;
+  border-radius: 12px;
+  background: #f0efff;
+  color: #5147cf;
+}
+
+body[data-page]:not([data-page="join"]) .show-mode-card-title {
+  color: #272d4c;
+  font-size: 13px;
+}
+
+body[data-page]:not([data-page="join"]) .show-mode-card-description {
+  color: #747a8e;
+  font-size: 11px;
+}
+
+body[data-page]:not([data-page="join"]) .format-card-link {
+  border-top-color: rgba(43,51,84,.1);
+  color: #5147cf;
+}
+
+body[data-page]:not([data-page="join"]) .template-library {
+  margin-top: 22px;
+}
+
+body[data-page]:not([data-page="join"]) .template-library-heading > span {
+  padding: 7px 10px;
+  border-radius: 99px;
+  background: #f0efff;
+  color: #5147cf;
+  font-size: 10px;
+}
+
+body[data-page]:not([data-page="join"]) .template-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+body[data-page]:not([data-page="join"]) .template-card {
+  min-height: 188px;
+  padding: 16px;
+  border-color: rgba(45,54,89,.1);
+  border-radius: 16px;
+  background: linear-gradient(150deg, #fff 30%, #f8f8fc);
+  box-shadow: 0 5px 15px rgba(40,47,77,.035);
+  transition: transform .2s, border-color .2s, box-shadow .2s;
+}
+
+body[data-page]:not([data-page="join"]) .template-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(98,88,232,.3);
+  box-shadow: 0 12px 25px rgba(40,47,77,.09);
+}
+
+body[data-page]:not([data-page="join"]) .template-category {
+  width: fit-content;
+  padding: 5px 8px;
+  border-radius: 99px;
+  background: #f0efff;
+  color: #5147cf;
+  font-size: 8px;
+}
+
+body[data-page]:not([data-page="join"]) .template-card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 7px;
+}
+
+body[data-page]:not([data-page="join"]) .template-question-count {
+  color: #777e92;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+body[data-page]:not([data-page="join"]) .template-card h3 {
+  color: #252b49;
+  font-size: 15px;
+}
+
+body[data-page]:not([data-page="join"]) .template-card p {
+  color: #747a8e;
+  font-size: 10px;
+}
+
+body[data-page]:not([data-page="join"]) .template-card .secondary-btn {
+  min-height: 36px;
+  justify-content: space-between;
+  border-color: rgba(98,88,232,.16);
+  background: #f5f4ff;
+  color: #4d43c1;
+}
+
+body[data-page]:not([data-page="join"]) .builder-layout {
+  grid-template-columns: minmax(0, 1fr) 310px;
+  gap: 20px;
+}
+
+body[data-page]:not([data-page="join"]) .builder-layout-custom {
+  grid-template-columns: minmax(0, 1fr) 290px;
+}
+
+body[data-page]:not([data-page="join"]) .builder-main {
+  padding: 30px;
+}
+
+body[data-page]:not([data-page="join"]) .builder-aside {
+  top: 18px;
+  padding: 24px;
+}
+
+body[data-page]:not([data-page="join"]) .builder-aside h3 {
+  color: #252b49;
+  font-size: 20px;
+}
+
+body[data-page]:not([data-page="join"]) .builder-aside p,
+body[data-page]:not([data-page="join"]) .tip-row {
+  color: #70768b;
+}
+
+body[data-page]:not([data-page="join"]) .builder-main > .field-label,
+body[data-page]:not([data-page="join"]) .field-label {
+  color: #343b5a;
+}
+
+body[data-page]:not([data-page="join"]) .text-field,
+body[data-page]:not([data-page="join"]) .question-prompt,
+body[data-page]:not([data-page="join"]) .option-field,
+body[data-page]:not([data-page="join"]) .timer-select {
+  border-color: rgba(47,56,91,.15);
+  background-color: #fbfbfd;
+  color: #252b49;
+}
+
+body[data-page]:not([data-page="join"]) .text-field::placeholder,
+body[data-page]:not([data-page="join"]) .question-prompt::placeholder,
+body[data-page]:not([data-page="join"]) .option-field::placeholder {
+  color: #a0a5b5;
+}
+
+body[data-page]:not([data-page="join"]) .question-list {
+  gap: 16px;
+  margin-top: 24px;
+}
+
+body[data-page]:not([data-page="join"]) .question-editor {
+  padding: 20px;
+  border-color: rgba(49,58,92,.11);
+  border-radius: 17px;
+  background: linear-gradient(155deg, #fff, #fafafe);
+  box-shadow: 0 6px 18px rgba(43,49,77,.035);
+}
+
+body[data-page]:not([data-page="join"]) .question-editor-title {
+  color: #574dd4;
+  letter-spacing: 1.2px;
+}
+
+body[data-page]:not([data-page="join"]) .accepted-answer-label,
+body[data-page]:not([data-page="join"]) .accepted-answer-points-label,
+body[data-page]:not([data-page="join"]) .question-type-caption,
+body[data-page]:not([data-page="join"]) .survey-builder-note,
+body[data-page]:not([data-page="join"]) .answer-type-note {
+  color: #767d91;
+}
+
+body[data-page]:not([data-page="join"]) .options-heading {
+  color: #565d77;
+}
+
+body[data-page]:not([data-page="join"]) .question-footer {
+  padding-top: 13px;
+  border-top: 1px solid rgba(43,51,84,.08);
+}
+
+body[data-page]:not([data-page="join"]) .theme-swatch {
+  border-color: rgba(43,51,84,.12);
+  background: #fafafe;
+  color: #5c637c;
+}
+
+body[data-page]:not([data-page="join"]) .theme-choice input:checked + .theme-swatch {
+  color: #252b49;
+}
+
+body[data-page]:not([data-page="join"]) .mode-settings-panel {
+  padding: 24px;
+  background: #fff;
+}
+
+body[data-page]:not([data-page="join"]) .mode-settings-heading h3,
+body[data-page]:not([data-page="join"]) .show-mode-heading h2 {
+  color: #252b49;
+}
+
+body[data-page]:not([data-page="join"]) .mode-settings-heading p,
+body[data-page]:not([data-page="join"]) .mode-settings-note {
+  color: #72798e;
+}
+
+body[data-page]:not([data-page="join"]) .mode-toggle {
+  border-color: rgba(44,54,88,.11);
+  background: #f8f9fc;
+}
+
+body[data-page]:not([data-page="join"]) .mode-toggle strong {
+  color: #333a59;
+}
+
+body[data-page]:not([data-page="join"]) .mode-toggle small {
+  color: #737a8e;
+}
+
+body[data-page]:not([data-page="join"]) .custom-builder-main,
+body[data-page]:not([data-page="join"]) .custom-producer-aside {
+  border-color: rgba(98,88,232,.16);
+  background: #fff;
+}
+
+body[data-page]:not([data-page="join"]) .custom-identity-block,
+body[data-page]:not([data-page="join"]) .custom-question-workbench,
+body[data-page]:not([data-page="join"]) .custom-studio,
+body[data-page]:not([data-page="join"]) .custom-studio-console {
+  border-color: rgba(98,88,232,.14);
+  background: #f8f7ff;
+}
+
+body[data-page]:not([data-page="join"]) .custom-identity-block strong,
+body[data-page]:not([data-page="join"]) .custom-workbench-heading h2,
+body[data-page]:not([data-page="join"]) .custom-studio-banner strong,
+body[data-page]:not([data-page="join"]) .custom-flow-heading strong {
+  color: #292f4e;
+}
+
+body[data-page]:not([data-page="join"]) .custom-identity-block small,
+body[data-page]:not([data-page="join"]) .custom-workbench-heading p,
+body[data-page]:not([data-page="join"]) .custom-studio-banner small,
+body[data-page]:not([data-page="join"]) .custom-flow-panel li small {
+  color: #757c91;
+}
+
+body[data-page]:not([data-page="join"]) .custom-flow-panel,
+body[data-page]:not([data-page="join"]) .custom-producer-meters div {
+  border-color: rgba(45,54,89,.1);
+  background: #fff;
+}
+
+body[data-page]:not([data-page="join"]) .custom-flow-panel li strong,
+body[data-page]:not([data-page="join"]) .custom-flow-panel > p,
+body[data-page]:not([data-page="join"]) .custom-producer-meters span {
+  color: #6f768b;
+}
+
+body[data-page]:not([data-page="join"]) .custom-module-summary span {
+  border-color: rgba(45,54,89,.12);
+  color: #6d7489;
+}
+
+body[data-page]:not([data-page="join"]) .custom-producer-meters strong,
+body[data-page]:not([data-page="join"]) .custom-module-summary .module-ready {
+  color: #397c46;
+}
+
+body[data-page]:not([data-page="join"]) .board-art-library,
+body[data-page]:not([data-page="join"]) .wheel-preview-panel,
+body[data-page]:not([data-page="join"]) .board-tile-editor,
+body[data-page]:not([data-page="join"]) .board-visual {
+  border-color: rgba(49,58,92,.12);
+  background-color: #f8f9fc;
+}
+
+body[data-page]:not([data-page="join"]) .board-editor-intro,
+body[data-page]:not([data-page="join"]) .board-visual-header strong,
+body[data-page]:not([data-page="join"]) .board-tile-number,
+body[data-page]:not([data-page="join"]) .wheel-preview-heading strong {
+  color: #343b5a;
+}
+
+body[data-page]:not([data-page="join"]) .board-art-option {
+  border-color: rgba(45,54,89,.12);
+  background: #fff;
+  color: #697087;
+}
+
+body[data-page]:not([data-page="join"]) .board-art-option:hover,
+body[data-page]:not([data-page="join"]) .board-art-option.selected {
+  border-color: #28a99f;
+  color: #287c75;
+}
+
+body[data-page]:not([data-page="join"]) .board-visual,
+body[data-page]:not([data-page="join"]) .live-board {
+  background: radial-gradient(ellipse at center, color-mix(in srgb, var(--board-accent) 9%, transparent), rgba(255,255,255,.94) 72%);
+}
+
+body[data-page]:not([data-page="join"]) .board-track-center {
+  border-color: color-mix(in srgb, var(--board-accent) 28%, white);
+  background: rgba(255,255,255,.93);
+}
+
+body[data-page]:not([data-page="join"]) .board-track-center strong,
+body[data-page]:not([data-page="join"]) .board-visual-tile strong,
+body[data-page]:not([data-page="join"]) .live-board-tile strong {
+  color: #303654;
+}
+
+body[data-page]:not([data-page="join"]) .board-track-center small {
+  color: #7d8498;
+}
+
+body[data-page]:not([data-page="join"]) .board-visual-tile,
+body[data-page]:not([data-page="join"]) .live-board-tile {
+  background: color-mix(in srgb, var(--tile-accent, var(--board-accent)) 13%, #fff);
+}
+
+body[data-page]:not([data-page="join"]) .game-layout {
+  max-width: 1030px;
+}
+
+body[data-page]:not([data-page="join"]) .game-header {
+  margin-bottom: 20px;
+  padding: 0 4px;
+}
+
+body[data-page]:not([data-page="join"]) .game-header h1 {
+  color: #232a49;
+  font-size: 31px;
+  letter-spacing: -1.3px;
+}
+
+body[data-page]:not([data-page="join"]) .game-pin {
+  border-color: rgba(42,49,81,.11);
+  background: #fff;
+  color: #6d7489;
+  box-shadow: 0 5px 17px rgba(42,49,81,.05);
+}
+
+body[data-page]:not([data-page="join"]) .game-pin strong,
+body[data-page]:not([data-page="join"]) .room-code .big-code {
+  color: #5147cf;
+}
+
+body[data-page]:not([data-page="join"]) .game-panel {
+  padding: 32px;
+}
+
+body[data-page]:not([data-page="join"]) .game-meta,
+body[data-page]:not([data-page="join"]) .game-meta strong {
+  color: #70778d;
+}
+
+body[data-page]:not([data-page="join"]) .game-meta span {
+  color: #554bd1;
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+
+body[data-page]:not([data-page="join"]) .timer-track {
+  background: #eceef4;
+}
+
+body[data-page]:not([data-page="join"]) .timer-fill {
+  background: linear-gradient(90deg, #6258e8, #30b59e);
+}
+
+body[data-page]:not([data-page="join"]) .game-question {
+  color: #202644;
+  font-size: clamp(27px, 4vw, 42px);
+}
+
+body[data-page]:not([data-page="join"]) .answer-card {
+  min-height: 92px;
+  border-color: rgba(44,53,88,.12);
+  border-radius: 17px;
+  background: #f8f9fc;
+  color: #343b59;
+}
+
+body[data-page]:not([data-page="join"]) .answer-card:hover:not(:disabled) {
+  border-color: rgba(98,88,232,.36);
+  background: #f3f2ff;
+}
+
+body[data-page]:not([data-page="join"]) .answer-card.selected {
+  border-color: #5e55dc;
+  background: #f1f0ff;
+}
+
+body[data-page]:not([data-page="join"]) .answer-card.is-correct {
+  border-color: rgba(55,151,92,.5);
+  background: #eef9ef;
+}
+
+body[data-page]:not([data-page="join"]) .answer-card.is-wrong {
+  border-color: rgba(237,109,118,.38);
+  background: #fff2f2;
+}
+
+body[data-page]:not([data-page="join"]) .answer-symbol {
+  background: #eeeff7;
+  color: #5147cf;
+}
+
+body[data-page]:not([data-page="join"]) .answer-status,
+body[data-page]:not([data-page="join"]) .host-question-note {
+  color: #747b90;
+}
+
+body[data-page]:not([data-page="join"]) .score-row,
+body[data-page]:not([data-page="join"]) .roster-item {
+  border-color: rgba(44,53,88,.09);
+  background: #f8f9fc;
+  color: #343b59;
+}
+
+body[data-page]:not([data-page="join"]) .score-row-leader {
+  border-color: rgba(98,88,232,.23);
+  background: #f2f1ff;
+}
+
+body[data-page]:not([data-page="join"]) .score-row > strong {
+  color: #5147cf;
+}
+
+body[data-page]:not([data-page="join"]) .score-rank {
+  background: #ebedf4;
+  color: #697087;
+}
+
+body[data-page]:not([data-page="join"]) .score-row-leader .score-rank {
+  background: #c4f27b;
+  color: #2b3a31;
+}
+
+body[data-page]:not([data-page="join"]) .leaderboard-heading {
+  color: #2b3150;
+}
+
+body[data-page]:not([data-page="join"]) .waiting-panel h2,
+body[data-page]:not([data-page="join"]) .lobby-layout .waiting-panel > p,
+body[data-page]:not([data-page="join"]) .copy-note,
+body[data-page]:not([data-page="join"]) .room-code .code-label {
+  color: #6d7489;
+}
+
+body[data-page]:not([data-page="join"]) .winner-stage {
+  border-color: rgba(98,88,232,.2);
+  background: radial-gradient(ellipse at 50% -30%, rgba(196,242,123,.36), transparent 66%), linear-gradient(140deg, #f6f5ff, #fff);
+}
+
+body[data-page]:not([data-page="join"]) .winner-names,
+body[data-page]:not([data-page="join"]) .winner-message {
+  color: #272d4c;
+}
+
+body[data-page]:not([data-page="join"]) .winner-crown {
+  border-color: rgba(98,88,232,.18);
+  background: #eeecff;
+  color: #554bd1;
+}
+
+body[data-page]:not([data-page="join"]) .library-card {
+  border-color: rgba(43,51,84,.11);
+  border-radius: 19px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(45,52,81,.07);
+}
+
+body[data-page]:not([data-page="join"]) .library-card-content {
+  padding: 22px;
+}
+
+body[data-page]:not([data-page="join"]) .library-card h2 {
+  color: #262c4a;
+}
+
+body[data-page]:not([data-page="join"]) .library-card p,
+body[data-page]:not([data-page="join"]) .library-card-meta {
+  color: #70778c;
+}
+
+body[data-page]:not([data-page="join"]) .library-empty {
+  border-color: rgba(98,88,232,.22);
+  background: rgba(255,255,255,.75);
+  color: #6c7389;
+}
+
+body[data-page]:not([data-page="join"]) .username-card {
+  border: 1px solid rgba(43,51,84,.1);
+  background: #fff;
+}
+
+body[data-page]:not([data-page="join"]) .save-note,
+body[data-page]:not([data-page="join"]) .builder-hint {
+  color: #797f92;
+}
+
+body[data-page]:not([data-page="join"]) .create-back-link {
+  margin-bottom: 22px;
+}
+
+body[data-page]:not([data-page="join"]) button:focus-visible,
+body[data-page]:not([data-page="join"]) a:focus-visible,
+body[data-page]:not([data-page="join"]) input:focus-visible,
+body[data-page]:not([data-page="join"]) textarea:focus-visible,
+body[data-page]:not([data-page="join"]) select:focus-visible {
+  outline-color: rgba(98,88,232,.65);
+}
+
+@media (max-width: 1000px) {
+  body[data-page]:not([data-page="join"]) .template-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  body[data-page]:not([data-page="join"]) .builder-layout,
+  body[data-page]:not([data-page="join"]) .builder-layout-custom {
+    grid-template-columns: minmax(0, 1fr) 270px;
+    gap: 14px;
+  }
+}
+
+@media (max-width: 850px) {
+  body[data-page]:not([data-page="join"]) .topbar {
+    width: calc(100% - 40px);
+  }
+  body[data-page]:not([data-page="join"]) .page-shell,
+  body[data-page]:not([data-page="join"]) .footer {
+    width: calc(100% - 40px);
+  }
+  body[data-page]:not([data-page="join"]) .builder-layout,
+  body[data-page]:not([data-page="join"]) .builder-layout-custom {
+    grid-template-columns: 1fr;
+  }
+  body[data-page]:not([data-page="join"]) .builder-aside {
+    position: static;
+  }
+}
+
+@media (max-width: 600px) {
+  body[data-page]:not([data-page="join"]) .topbar,
+  body[data-page]:not([data-page="join"]) .page-shell,
+  body[data-page]:not([data-page="join"]) .footer {
+    width: calc(100% - 28px);
+  }
+  body[data-page]:not([data-page="join"]) .topbar {
+    height: 72px;
+  }
+  body[data-page]:not([data-page="join"]) .page-shell {
+    padding: 34px 0 48px;
+  }
+  body[data-page]:not([data-page="join"]) .nav-link {
+    padding: 9px 10px;
+    font-size: 10px;
+  }
+  body[data-page]:not([data-page="join"]) .brand {
+    gap: 7px;
+    font-size: 18px;
+  }
+  body[data-page]:not([data-page="join"]) .brand-mark {
+    width: 31px;
+    height: 31px;
+    border-radius: 10px;
+    font-size: 16px;
+  }
+  body[data-page]:not([data-page="join"]) .content-heading h1 {
+    font-size: 38px;
+  }
+  body[data-page]:not([data-page="join"]) .show-mode-section,
+  body[data-page]:not([data-page="join"]) .template-library {
+    padding: 18px;
+  }
+  body[data-page]:not([data-page="join"]) .template-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  body[data-page]:not([data-page="join"]) .template-card {
+    min-height: 190px;
+    padding: 13px;
+  }
+  body[data-page]:not([data-page="join"]) .builder-main,
+  body[data-page]:not([data-page="join"]) .game-panel {
+    padding: 18px;
+  }
+  body[data-page]:not([data-page="join"]) .builder-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  body[data-page]:not([data-page="join"]) .builder-actions > div {
+    width: 100%;
+  }
+  body[data-page]:not([data-page="join"]) .builder-actions > div button {
+    flex: 1;
+  }
+  body[data-page]:not([data-page="join"]) .game-header h1 {
+    font-size: 22px;
+  }
+}
+
+@media (max-width: 420px) {
+  body[data-page]:not([data-page="join"]) .template-grid {
+    grid-template-columns: 1fr;
+  }
+  body[data-page]:not([data-page="join"]) .template-card {
+    min-height: 0;
+  }
+}
