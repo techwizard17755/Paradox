@@ -459,14 +459,15 @@ function modePath(mode) {
   return `/create/${mode.toLowerCase()}`;
 }
 
-function isV2Path(pathname = window.location.pathname) {
+function isV1Path(pathname = window.location.pathname) {
   const path = pathname.replace(/\/+$/, "").toLowerCase() || "/";
-  return path === "/v2" || path.startsWith("/v2/");
+  return path === "/v1" || path.startsWith("/v1/");
 }
 
 function routeFor(pathname = window.location.pathname) {
   let path = pathname.replace(/\/+$/, "").toLowerCase() || "/";
-  if (path === "/v2") path = "/";
+  if (path === "/v1" || path === "/v2") path = "/";
+  else if (path.startsWith("/v1/")) path = path.slice(3);
   else if (path.startsWith("/v2/")) path = path.slice(3);
   if (path === "/" || path === "/join") return { page: "join" };
   if (path === "/create") return { page: "create" };
@@ -482,22 +483,22 @@ function routeFor(pathname = window.location.pathname) {
 }
 
 function setPath(path, replace = false) {
-  if (window.location.pathname === path && !window.location.search && !window.location.hash) return;
-  if (replace) window.history.replaceState(null, "", path);
-  else window.history.pushState(null, "", path);
+  const destination = isV1Path() && path !== "/v1" && !path.startsWith("/v1/")
+    ? path === "/" ? "/v1" : `/v1${path}`
+    : path;
+  if (window.location.pathname === destination && !window.location.search && !window.location.hash) return;
+  if (replace) window.history.replaceState(null, "", destination);
+  else window.history.pushState(null, "", destination);
 }
 
 function navigateTo(path, replace = false) {
-  const destination = isV2Path() && path !== "/v2" && !isV2Path(path)
-    ? path === "/" ? "/v2" : `/v2${path}`
-    : path;
-  setPath(destination, replace);
+  setPath(path, replace);
   renderRoute();
 }
 
 function renderRoute() {
   const route = routeFor();
-  document.body.classList.toggle("v2-mode", isV2Path() && route.page !== "family-template");
+  document.body.classList.toggle("v2-mode", !isV1Path() && route.page !== "family-template");
   if (route.page === "join") return renderJoin();
   if (route.page === "create") return renderCreateChooser();
   if (route.page === "family-template") return void loadPrivateFamilyTemplate();

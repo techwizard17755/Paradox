@@ -27,6 +27,8 @@ app.MapParadoxGameEndpoints();
 app.MapQuizLibraryEndpoints();
 app.MapFallbackToFile("/v2", "index.html");
 app.MapFallbackToFile("/v2/{**path}", "index.html");
+app.MapFallbackToFile("/v1", "index.html");
+app.MapFallbackToFile("/v1/{**path}", "index.html");
 app.MapFallbackToFile("/create", "index.html");
 app.MapFallbackToFile("/create/{mode}", "index.html");
 app.MapFallbackToFile("/my-quizzes", "index.html");
