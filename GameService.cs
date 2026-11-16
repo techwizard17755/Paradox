@@ -124,6 +124,26 @@ internal sealed class GameService : IGameService
                     : []
             })
             .ToArray();
+        for (var questionIndex = 0; questionIndex < normalizedQuestions.Length; questionIndex++)
+        {
+            var question = normalizedQuestions[questionIndex];
+            if (question.Type != QuestionType.MultipleChoice)
+                continue;
+
+            var optionOrder = Enumerable.Range(0, question.Options.Count).ToArray();
+            for (var optionIndex = optionOrder.Length - 1; optionIndex > 0; optionIndex--)
+            {
+                var swapIndex = RandomNumberGenerator.GetInt32(optionIndex + 1);
+                (optionOrder[optionIndex], optionOrder[swapIndex]) =
+                    (optionOrder[swapIndex], optionOrder[optionIndex]);
+            }
+
+            normalizedQuestions[questionIndex] = question with
+            {
+                Options = optionOrder.Select(index => question.Options[index]).ToList(),
+                CorrectOptionIndex = Array.IndexOf(optionOrder, question.CorrectOptionIndex)
+            };
+        }
         var boardTiles = ShowConfigurationValidator.HasBoard(request.Mode, request.BoardEnabled)
             ? request.BoardTiles.Select(tile => tile with
             {

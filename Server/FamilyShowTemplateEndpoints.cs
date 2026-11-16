@@ -188,15 +188,24 @@ internal static class FamilyShowTemplateEndpoints
         string prompt,
         string subject,
         List<string> options,
-        int correctOptionIndex) =>
-        new()
+        int correctOptionIndex)
+    {
+        var optionOrder = Enumerable.Range(0, options.Count).ToArray();
+        for (var index = optionOrder.Length - 1; index > 0; index--)
+        {
+            var swapIndex = RandomNumberGenerator.GetInt32(index + 1);
+            (optionOrder[index], optionOrder[swapIndex]) = (optionOrder[swapIndex], optionOrder[index]);
+        }
+
+        return new()
         {
             Prompt = prompt,
             Subject = subject,
             Type = QuestionType.MultipleChoice,
-            Options = options,
-            CorrectOptionIndex = correctOptionIndex
+            Options = optionOrder.Select(index => options[index]).ToList(),
+            CorrectOptionIndex = Array.IndexOf(optionOrder, correctOptionIndex)
         };
+    }
 
     private static QuizQuestionRequest Typed(string prompt, string subject, List<string> acceptedAnswers) =>
         new()
