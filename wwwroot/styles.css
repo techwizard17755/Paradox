@@ -620,24 +620,24 @@ h1, h2, h3 { font-family: "Space Grotesk", sans-serif; }
 }
 
 body[data-page]:not([data-page="join"]) {
-  color-scheme: light;
-  --ink: #1d2340;
-  --muted: #687087;
-  --dim: #858ba0;
-  --night: #f0f2f7;
-  --panel: #ffffff;
-  --panel-light: #f6f7fb;
-  --line: rgba(36, 44, 75, .12);
-  --purple: #6258e8;
-  --violet: #4c43d2;
-  --lime: #c4f27b;
-  --coral: #ed6d76;
-  --cyan: #28a99f;
+  color-scheme: dark;
+  --ink: #f8f6ff;
+  --muted: #a7a1b9;
+  --dim: #777188;
+  --night: #191329;
+  --panel: rgba(37, 30, 55, .82);
+  --panel-light: #2a2340;
+  --line: rgba(255, 255, 255, .1);
+  --purple: #a98bff;
+  --violet: #8662f5;
+  --lime: #d3ff72;
+  --coral: #ff887c;
+  --cyan: #66e4d1;
   color: var(--ink);
   background:
-    radial-gradient(ellipse at 86% 0, rgba(102, 91, 231, .1), transparent 34rem),
-    radial-gradient(ellipse at 0 42%, rgba(196, 242, 123, .11), transparent 27rem),
-    #f2f4f8;
+    radial-gradient(ellipse at 86% 0, rgba(111, 77, 196, .19), transparent 34rem),
+    radial-gradient(ellipse at 0 42%, rgba(36, 159, 148, .1), transparent 27rem),
+    #191329;
 }
 
 body[data-page]:not([data-page="join"]) .topbar {
@@ -1427,4 +1427,453 @@ body[data-page]:not([data-page="join"]) select:focus-visible {
   body[data-page]:not([data-page="join"]) .template-card {
     min-height: 0;
   }
+}
+
+body[data-page]:not([data-page="join"]) .topbar {
+  border-bottom-color: rgba(255,255,255,.07);
+}
+
+body[data-page]:not([data-page="join"]) .brand {
+  color: var(--ink);
+}
+
+body[data-page]:not([data-page="join"]) .brand-mark {
+  background: var(--lime);
+  color: #242032;
+  box-shadow: none;
+}
+
+body[data-page]:not([data-page="join"]) .main-nav {
+  border-color: var(--line);
+  background: rgba(255,255,255,.045);
+  box-shadow: none;
+}
+
+body[data-page]:not([data-page="join"]) .nav-link {
+  color: #b6b0c7;
+}
+
+body[data-page]:not([data-page="join"]) .nav-link:hover,
+body[data-page]:not([data-page="join"]) .nav-link.active {
+  background: #342b4c;
+  color: var(--ink);
+}
+
+body[data-page]:not([data-page="join"]) .topbar-note,
+body[data-page]:not([data-page="join"]) .footer {
+  color: var(--muted);
+}
+
+body[data-page]:not([data-page="join"]) .online-dot {
+  background: var(--lime);
+  box-shadow: 0 0 12px rgba(211,255,114,.7);
+}
+
+body[data-page]:not([data-page="join"]) .footer {
+  border-top-color: rgba(255,255,255,.07);
+}
+
+body[data-page]:not([data-page="join"]) .footer span:first-child,
+body[data-page]:not([data-page="join"]) .content-heading h1,
+body[data-page]:not([data-page="join"]) .show-mode-heading h2,
+body[data-page]:not([data-page="join"]) .template-library-heading h2,
+body[data-page]:not([data-page="join"]) .builder-aside h3,
+body[data-page]:not([data-page="join"]) .mode-settings-heading h3,
+body[data-page]:not([data-page="join"]) .mode-settings-heading h2,
+body[data-page]:not([data-page="join"]) .game-header h1,
+body[data-page]:not([data-page="join"]) .game-question,
+body[data-page]:not([data-page="join"]) .leaderboard-heading,
+body[data-page]:not([data-page="join"]) .library-card h2 {
+  color: var(--ink);
+}
+
+body[data-page]:not([data-page="join"]) .eyebrow {
+  border-color: rgba(169,139,255,.2);
+  background: rgba(169,139,255,.08);
+  color: var(--lime);
+}
+
+body[data-page]:not([data-page="join"]) .content-heading p:not(.eyebrow),
+body[data-page]:not([data-page="join"]) .show-mode-heading p,
+body[data-page]:not([data-page="join"]) .template-library-note,
+body[data-page]:not([data-page="join"]) .builder-aside p,
+body[data-page]:not([data-page="join"]) .tip-row,
+body[data-page]:not([data-page="join"]) .mode-settings-heading p,
+body[data-page]:not([data-page="join"]) .mode-settings-note,
+body[data-page]:not([data-page="join"]) .lobby-layout .waiting-panel > p,
+body[data-page]:not([data-page="join"]) .library-card p,
+body[data-page]:not([data-page="join"]) .library-card-meta,
+body[data-page]:not([data-page="join"]) .save-note,
+body[data-page]:not([data-page="join"]) .builder-hint {
+  color: var(--muted);
+}
+
+body[data-page]:not([data-page="join"]) .primary-btn {
+  background: var(--lime);
+  color: #221e2f;
+  box-shadow: 0 8px 26px rgba(211,255,114,.13);
+}
+
+body[data-page]:not([data-page="join"]) .primary-btn:hover {
+  background: var(--lime);
+  filter: brightness(1.05);
+}
+
+body[data-page]:not([data-page="join"]) .secondary-btn,
+body[data-page]:not([data-page="join"]) .quiet-btn {
+  border-color: var(--line);
+  background: rgba(255,255,255,.075);
+  color: var(--ink);
+}
+
+body[data-page]:not([data-page="join"]) .secondary-btn:hover,
+body[data-page]:not([data-page="join"]) .quiet-btn:hover {
+  border-color: var(--line);
+  background: rgba(255,255,255,.13);
+  color: var(--ink);
+}
+
+body[data-page]:not([data-page="join"]) .show-mode-section,
+body[data-page]:not([data-page="join"]) .template-library,
+body[data-page]:not([data-page="join"]) .mode-settings-panel,
+body[data-page]:not([data-page="join"]) .builder-main,
+body[data-page]:not([data-page="join"]) .builder-aside,
+body[data-page]:not([data-page="join"]) .game-panel,
+body[data-page]:not([data-page="join"]) .waiting-panel,
+body[data-page]:not([data-page="join"]) .custom-builder-main,
+body[data-page]:not([data-page="join"]) .custom-producer-aside,
+body[data-page]:not([data-page="join"]) .library-card {
+  border-color: var(--line);
+  background: var(--panel);
+  box-shadow: 0 22px 65px rgba(0,0,0,.13);
+}
+
+body[data-page]:not([data-page="join"]) .show-mode-card,
+body[data-page]:not([data-page="join"]) .template-card {
+  border-color: rgba(255,255,255,.09);
+  background: rgba(14,11,24,.4);
+  box-shadow: none;
+}
+
+body[data-page]:not([data-page="join"]) .show-mode-card:hover,
+body[data-page]:not([data-page="join"]) .template-card:hover {
+  border-color: rgba(169,139,255,.45);
+  background: rgba(169,139,255,.06);
+  box-shadow: 0 12px 25px rgba(0,0,0,.16);
+}
+
+body[data-page]:not([data-page="join"]) .show-mode-card.selected {
+  border-color: var(--lime);
+  background: rgba(211,255,114,.07);
+}
+
+body[data-page]:not([data-page="join"]) .show-mode-icon,
+body[data-page]:not([data-page="join"]) .template-category {
+  background: rgba(169,139,255,.14);
+  color: var(--purple);
+}
+
+body[data-page]:not([data-page="join"]) .show-mode-card-title,
+body[data-page]:not([data-page="join"]) .template-card h3 {
+  color: var(--ink);
+}
+
+body[data-page]:not([data-page="join"]) .show-mode-card-description,
+body[data-page]:not([data-page="join"]) .template-card p,
+body[data-page]:not([data-page="join"]) .template-question-count {
+  color: var(--muted);
+}
+
+body[data-page]:not([data-page="join"]) .format-card-link,
+body[data-page]:not([data-page="join"]) .template-library-heading > span {
+  border-top-color: var(--line);
+  color: var(--lime);
+}
+
+body[data-page]:not([data-page="join"]) .template-library-heading > span {
+  border: 0;
+  background: rgba(211,255,114,.09);
+}
+
+body[data-page]:not([data-page="join"]) .template-card .secondary-btn {
+  border-color: var(--line);
+  background: rgba(255,255,255,.075);
+  color: var(--ink);
+}
+
+body[data-page]:not([data-page="join"]) .field-label,
+body[data-page]:not([data-page="join"]) .builder-main > .field-label,
+body[data-page]:not([data-page="join"]) .options-heading,
+body[data-page]:not([data-page="join"]) .board-editor-intro,
+body[data-page]:not([data-page="join"]) .board-visual-header strong,
+body[data-page]:not([data-page="join"]) .wheel-preview-heading strong,
+body[data-page]:not([data-page="join"]) .custom-identity-block strong,
+body[data-page]:not([data-page="join"]) .custom-workbench-heading h2,
+body[data-page]:not([data-page="join"]) .custom-studio-banner strong,
+body[data-page]:not([data-page="join"]) .custom-flow-heading strong {
+  color: #e4dff0;
+}
+
+body[data-page]:not([data-page="join"]) .text-field,
+body[data-page]:not([data-page="join"]) .question-prompt,
+body[data-page]:not([data-page="join"]) .option-field,
+body[data-page]:not([data-page="join"]) .timer-select {
+  border-color: rgba(255,255,255,.11);
+  background-color: rgba(14,11,24,.38);
+  color: var(--ink);
+}
+
+body[data-page]:not([data-page="join"]) .text-field::placeholder,
+body[data-page]:not([data-page="join"]) .question-prompt::placeholder,
+body[data-page]:not([data-page="join"]) .option-field::placeholder {
+  color: #686278;
+}
+
+body[data-page]:not([data-page="join"]) .question-editor,
+body[data-page]:not([data-page="join"]) .board-tile-editor,
+body[data-page]:not([data-page="join"]) .custom-flow-panel,
+body[data-page]:not([data-page="join"]) .custom-producer-meters div {
+  border-color: rgba(255,255,255,.085);
+  background: rgba(255,255,255,.025);
+  box-shadow: none;
+}
+
+body[data-page]:not([data-page="join"]) .question-editor-title,
+body[data-page]:not([data-page="join"]) .board-tile-number,
+body[data-page]:not([data-page="join"]) .custom-flow-panel li > i {
+  color: var(--purple);
+}
+
+body[data-page]:not([data-page="join"]) .accepted-answer-label,
+body[data-page]:not([data-page="join"]) .accepted-answer-points-label,
+body[data-page]:not([data-page="join"]) .question-type-caption,
+body[data-page]:not([data-page="join"]) .survey-builder-note,
+body[data-page]:not([data-page="join"]) .answer-type-note,
+body[data-page]:not([data-page="join"]) .custom-identity-block small,
+body[data-page]:not([data-page="join"]) .custom-workbench-heading p,
+body[data-page]:not([data-page="join"]) .custom-studio-banner small,
+body[data-page]:not([data-page="join"]) .custom-flow-panel li small,
+body[data-page]:not([data-page="join"]) .custom-flow-panel li strong,
+body[data-page]:not([data-page="join"]) .custom-flow-panel > p,
+body[data-page]:not([data-page="join"]) .custom-producer-meters span {
+  color: var(--muted);
+}
+
+body[data-page]:not([data-page="join"]) .question-footer {
+  border-top-color: var(--line);
+}
+
+body[data-page]:not([data-page="join"]) .theme-swatch {
+  border-color: var(--line);
+  background: rgba(255,255,255,.025);
+  color: #c5bfd1;
+}
+
+body[data-page]:not([data-page="join"]) .theme-choice input:checked + .theme-swatch {
+  color: var(--ink);
+}
+
+body[data-page]:not([data-page="join"]) .mode-toggle {
+  border-color: rgba(255,255,255,.08);
+  background: rgba(14,11,24,.28);
+}
+
+body[data-page]:not([data-page="join"]) .mode-toggle strong,
+body[data-page]:not([data-page="join"]) .custom-module-summary span {
+  color: var(--ink);
+}
+
+body[data-page]:not([data-page="join"]) .mode-toggle small,
+body[data-page]:not([data-page="join"]) .custom-module-summary span:not(.module-ready) {
+  color: var(--muted);
+}
+
+body[data-page]:not([data-page="join"]) .custom-identity-block,
+body[data-page]:not([data-page="join"]) .custom-question-workbench,
+body[data-page]:not([data-page="join"]) .custom-studio,
+body[data-page]:not([data-page="join"]) .custom-studio-console {
+  border-color: rgba(169,139,255,.18);
+  background: rgba(12,9,22,.34);
+}
+
+body[data-page]:not([data-page="join"]) .custom-flow-panel li strong {
+  color: #ddd6e9;
+}
+
+body[data-page]:not([data-page="join"]) .custom-producer-meters strong,
+body[data-page]:not([data-page="join"]) .custom-module-summary .module-ready {
+  color: var(--lime);
+}
+
+body[data-page]:not([data-page="join"]) .board-art-library,
+body[data-page]:not([data-page="join"]) .wheel-preview-panel,
+body[data-page]:not([data-page="join"]) .board-visual {
+  border-color: rgba(255,255,255,.1);
+  background-color: rgba(14,11,24,.3);
+}
+
+body[data-page]:not([data-page="join"]) .board-art-option {
+  border-color: rgba(255,255,255,.1);
+  background: rgba(14,11,24,.55);
+  color: var(--muted);
+}
+
+body[data-page]:not([data-page="join"]) .board-art-option:hover,
+body[data-page]:not([data-page="join"]) .board-art-option.selected {
+  border-color: var(--cyan);
+  color: #e6fffa;
+}
+
+body[data-page]:not([data-page="join"]) .board-visual,
+body[data-page]:not([data-page="join"]) .live-board {
+  background: radial-gradient(ellipse at center, color-mix(in srgb, var(--board-accent) 10%, transparent), rgba(11,8,19,.7) 70%);
+}
+
+body[data-page]:not([data-page="join"]) .board-track-center {
+  border-color: color-mix(in srgb, var(--board-accent) 35%, transparent);
+  background: rgba(15,11,26,.76);
+}
+
+body[data-page]:not([data-page="join"]) .board-track-center strong,
+body[data-page]:not([data-page="join"]) .board-visual-tile strong,
+body[data-page]:not([data-page="join"]) .live-board-tile strong {
+  color: #f1ebfc;
+}
+
+body[data-page]:not([data-page="join"]) .board-track-center small {
+  color: var(--dim);
+}
+
+body[data-page]:not([data-page="join"]) .board-visual-tile,
+body[data-page]:not([data-page="join"]) .live-board-tile {
+  background: color-mix(in srgb, var(--tile-accent, var(--board-accent)) 10%, rgba(19,15,32,.92));
+}
+
+body[data-page]:not([data-page="join"]) .game-pin {
+  border-color: var(--line);
+  background: rgba(255,255,255,.045);
+  color: #bdb6cb;
+  box-shadow: none;
+}
+
+body[data-page]:not([data-page="join"]) .game-pin strong,
+body[data-page]:not([data-page="join"]) .room-code .big-code,
+body[data-page]:not([data-page="join"]) .score-row > strong {
+  color: var(--lime);
+}
+
+body[data-page]:not([data-page="join"]) .game-meta,
+body[data-page]:not([data-page="join"]) .game-meta strong {
+  color: var(--muted);
+}
+
+body[data-page]:not([data-page="join"]) .waiting-panel h2 {
+  color: var(--ink);
+}
+
+body[data-page]:not([data-page="join"]) .game-meta span {
+  color: #a7a1b9;
+}
+
+body[data-page]:not([data-page="join"]) .timer-track {
+  background: rgba(255,255,255,.09);
+}
+
+body[data-page]:not([data-page="join"]) .timer-fill {
+  background: linear-gradient(90deg, var(--lime), #78e1be);
+}
+
+body[data-page]:not([data-page="join"]) .answer-card {
+  border-color: rgba(255,255,255,.13);
+  background: rgba(255,255,255,.055);
+  color: var(--ink);
+}
+
+body[data-page]:not([data-page="join"]) .answer-card:hover:not(:disabled) {
+  border-color: rgba(211,255,114,.5);
+  background: rgba(211,255,114,.08);
+}
+
+body[data-page]:not([data-page="join"]) .answer-card.selected {
+  border-color: var(--lime);
+  background: rgba(211,255,114,.12);
+}
+
+body[data-page]:not([data-page="join"]) .answer-card.is-correct {
+  border-color: rgba(211,255,114,.75);
+  background: rgba(211,255,114,.13);
+}
+
+body[data-page]:not([data-page="join"]) .answer-card.is-wrong {
+  border-color: rgba(255,136,124,.48);
+  background: rgba(255,136,124,.08);
+}
+
+body[data-page]:not([data-page="join"]) .answer-symbol {
+  background: rgba(255,255,255,.11);
+  color: var(--lime);
+}
+
+body[data-page]:not([data-page="join"]) .answer-status,
+body[data-page]:not([data-page="join"]) .host-question-note,
+body[data-page]:not([data-page="join"]) .copy-note,
+body[data-page]:not([data-page="join"]) .room-code .code-label {
+  color: var(--muted);
+}
+
+body[data-page]:not([data-page="join"]) .score-row,
+body[data-page]:not([data-page="join"]) .roster-item {
+  border-color: rgba(255,255,255,.07);
+  background: rgba(255,255,255,.035);
+  color: #d6d1df;
+}
+
+body[data-page]:not([data-page="join"]) .score-row-leader {
+  border-color: rgba(211,255,114,.3);
+  background: rgba(211,255,114,.07);
+}
+
+body[data-page]:not([data-page="join"]) .score-rank {
+  background: rgba(255,255,255,.07);
+  color: var(--muted);
+}
+
+body[data-page]:not([data-page="join"]) .score-row-leader .score-rank {
+  background: var(--lime);
+  color: #252131;
+}
+
+body[data-page]:not([data-page="join"]) .winner-stage {
+  border-color: rgba(211,255,114,.25);
+  background: radial-gradient(ellipse at 50% -30%, rgba(211,255,114,.2), transparent 66%), linear-gradient(135deg, rgba(60,49,82,.92), rgba(34,28,51,.96));
+}
+
+body[data-page]:not([data-page="join"]) .winner-names,
+body[data-page]:not([data-page="join"]) .winner-message {
+  color: var(--ink);
+}
+
+body[data-page]:not([data-page="join"]) .winner-crown {
+  border-color: rgba(211,255,114,.4);
+  background: rgba(211,255,114,.12);
+  color: var(--lime);
+}
+
+body[data-page]:not([data-page="join"]) .library-empty {
+  border-color: rgba(255,255,255,.14);
+  background: rgba(14,11,24,.4);
+  color: var(--muted);
+}
+
+body[data-page]:not([data-page="join"]) .username-card {
+  border-color: var(--line);
+  background: linear-gradient(145deg, rgba(50,41,73,.92), rgba(31,25,48,.94));
+}
+
+body[data-page]:not([data-page="join"]) button:focus-visible,
+body[data-page]:not([data-page="join"]) a:focus-visible,
+body[data-page]:not([data-page="join"]) input:focus-visible,
+body[data-page]:not([data-page="join"]) textarea:focus-visible,
+body[data-page]:not([data-page="join"]) select:focus-visible {
+  outline-color: rgba(211,255,114,.8);
 }
