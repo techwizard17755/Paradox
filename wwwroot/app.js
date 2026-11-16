@@ -459,8 +459,15 @@ function modePath(mode) {
   return `/create/${mode.toLowerCase()}`;
 }
 
-function routeFor(pathname = window.location.pathname) {
+function isV2Path(pathname = window.location.pathname) {
   const path = pathname.replace(/\/+$/, "").toLowerCase() || "/";
+  return path === "/v2" || path.startsWith("/v2/");
+}
+
+function routeFor(pathname = window.location.pathname) {
+  let path = pathname.replace(/\/+$/, "").toLowerCase() || "/";
+  if (path === "/v2") path = "/";
+  else if (path.startsWith("/v2/")) path = path.slice(3);
   if (path === "/" || path === "/join") return { page: "join" };
   if (path === "/create") return { page: "create" };
   if (path === "/create/family-show") return { page: "family-template" };
@@ -481,12 +488,16 @@ function setPath(path, replace = false) {
 }
 
 function navigateTo(path, replace = false) {
-  setPath(path, replace);
+  const destination = isV2Path() && path !== "/v2" && !isV2Path(path)
+    ? path === "/" ? "/v2" : `/v2${path}`
+    : path;
+  setPath(destination, replace);
   renderRoute();
 }
 
 function renderRoute() {
   const route = routeFor();
+  document.body.classList.toggle("v2-mode", isV2Path() && route.page !== "family-template");
   if (route.page === "join") return renderJoin();
   if (route.page === "create") return renderCreateChooser();
   if (route.page === "family-template") return void loadPrivateFamilyTemplate();
@@ -652,8 +663,9 @@ function renderJoin() {
   stopPolling();
   setTheme();
   setNav("join");
+  const v2Experience = document.body.classList.contains("v2-mode");
   app.innerHTML = `
-    <section class="hero">
+    <section class="hero ${v2Experience ? "hero-v2" : ""}">
       <div class="decor-board" aria-hidden="true">
         <div class="quiz-preview">
           <div class="preview-line"><span>QUICK QUIZ</span><span class="preview-tag">LIVE</span></div>
@@ -665,12 +677,14 @@ function renderJoin() {
         <div class="float-tile tile-one">✦</div><div class="float-tile tile-two">◈</div><div class="float-tile tile-three">✧</div>
       </div>
       <div class="hero-copy-block">
-        <p class="eyebrow"><span class="eyebrow-mark">✦</span> A quiz night, reimagined</p>
-        <h1>Think fast.<br><em>Have fun.</em></h1>
-        <p class="hero-copy">Jump into a live quiz with your crew. Pick a nickname, bring your best guesses, and see who comes out on top.</p>
+        <p class="eyebrow"><span class="eyebrow-mark">✦</span> ${v2Experience ? "PARADOX V2 · THE SHOW STARTS HERE" : "A quiz night, reimagined"}</p>
+        <h1>${v2Experience ? "Make tonight.<br><em>Legendary.</em>" : "Think fast.<br><em>Have fun.</em>"}</h1>
+        <p class="hero-copy">${v2Experience
+          ? "Turn any room into a live game show. Bring your people, pick your format, and make the next question count."
+          : "Jump into a live quiz with your crew. Pick a nickname, bring your best guesses, and see who comes out on top."}</p>
         <div class="hero-actions">
           <button class="primary-btn" data-action="focus-pin">Enter a game PIN <span aria-hidden="true">→</span></button>
-          <a class="secondary-btn" href="/create" data-page="create" data-app-link>Make your own ✦</a>
+          <a class="secondary-btn" href="/create" data-page="create" data-app-link>${v2Experience ? "Build a show ✦" : "Make your own ✦"}</a>
         </div>
         <div class="social-proof"><div class="avatar-stack"><span class="avatar">J</span><span class="avatar">M</span><span class="avatar">A</span></div><span>Better together, one question at a time</span></div>
       </div>
