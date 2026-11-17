@@ -86,6 +86,35 @@ Content-Type: application/json
   "username": "Alex"
 }
 
+### Mark a player disconnected (the player ID is restored on page refresh)
+POST {{baseUrl}}/api/games/123456/players/disconnect
+Content-Type: application/json
+
+{
+  "playerId": "replace-with-player-id"
+}
+
+### Leave the game and remove the player immediately
+POST {{baseUrl}}/api/games/123456/players/leave
+Content-Type: application/json
+
+{
+  "playerId": "replace-with-player-id"
+}
+
+### Kick a player from the game (include the host key)
+POST {{baseUrl}}/api/games/123456/players/kick
+X-Host-Key: replace-with-host-key
+Content-Type: application/json
+
+{
+  "username": "Alex"
+}
+
+### Skip the active board-game player's turn (include the host key)
+POST {{baseUrl}}/api/games/123456/skip-turn
+X-Host-Key: replace-with-host-key
+
 ### Start the game (include the X-Host-Key returned by create)
 POST {{baseUrl}}/api/games/123456/start
 X-Host-Key: replace-with-host-key

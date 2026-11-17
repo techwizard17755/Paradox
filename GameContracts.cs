@@ -89,6 +89,22 @@ public sealed record JoinGameRequest
     public required string Username { get; init; }
 }
 
+/// <summary>Player credentials used to leave or disconnect from a game.</summary>
+public sealed record LeaveGameRequest
+{
+    /// <summary>Private player identifier returned when the player joined.</summary>
+    [Required, StringLength(32, MinimumLength = 32)]
+    public required string PlayerId { get; init; }
+}
+
+/// <summary>Identifies a player the host wants to remove from the game.</summary>
+public sealed record KickPlayerRequest
+{
+    /// <summary>Name of the player to remove.</summary>
+    [Required, StringLength(20, MinimumLength = 1)]
+    public required string Username { get; init; }
+}
+
 /// <summary>Payload for submitting an answer to the current question.</summary>
 public sealed record SubmitAnswerRequest
 {

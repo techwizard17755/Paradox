@@ -2222,3 +2222,106 @@ body[data-page]:not([data-page="join"]) select:focus-visible {
     display: none;
   }
 }
+
+.game-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.host-player-controls {
+  position: relative;
+}
+
+.host-player-controls > summary {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: rgba(255,255,255,.045);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  list-style: none;
+  white-space: nowrap;
+}
+
+.host-player-controls > summary::-webkit-details-marker { display: none; }
+.host-player-controls > summary::after { margin-left: 7px; color: var(--lime); content: "⌄"; }
+.host-player-controls[open] > summary::after { content: "⌃"; }
+.host-player-controls > summary span { margin-left: 4px; color: var(--lime); }
+
+.host-player-menu {
+  position: absolute;
+  z-index: 60;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(320px, calc(100vw - 32px));
+  max-height: min(60vh, 440px);
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--panel-light);
+  box-shadow: 0 16px 45px rgba(0,0,0,.32);
+}
+
+.host-player-menu > strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.host-player-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+}
+
+.host-player-row > span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.host-player-kick {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border: 1px solid rgba(255,118,94,.32);
+  border-radius: 8px;
+  background: rgba(255,118,94,.08);
+  color: #ff9a87;
+  font-size: 9px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.host-player-kick:hover { background: rgba(255,118,94,.18); }
+.host-player-kick:disabled { opacity: .55; cursor: wait; }
+
+.host-skip-turn {
+  display: grid;
+  gap: 8px;
+  margin-top: 9px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.host-skip-turn > span { color: var(--muted); font-size: 10px; }
+.host-skip-turn > span strong { color: var(--lime); }
+.host-skip-turn .secondary-btn { min-height: 34px; padding: 7px 10px; font-size: 10px; }
+.game-leave-btn { min-height: 40px; padding: 8px 11px; font-size: 10px; white-space: nowrap; }
+
+@media (max-width: 600px) {
+  .game-header-actions { gap: 5px; }
+  .host-player-controls > summary { padding: 9px 8px; font-size: 9px; }
+  .game-leave-btn { min-height: 36px; padding: 7px; font-size: 9px; }
+}

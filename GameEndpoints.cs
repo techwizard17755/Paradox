@@ -69,6 +69,87 @@ internal static class GameEndpoints
         .ProducesProblem(StatusCodes.Status404NotFound)
         .ProducesProblem(StatusCodes.Status409Conflict);
 
+        app.MapPost("/api/games/{pin}/players/disconnect", IResult (
+            string pin,
+            LeaveGameRequest body,
+            IGameService games,
+            CancellationToken cancellationToken) =>
+        {
+            _ = cancellationToken;
+            var result = games.Disconnect(pin, body.PlayerId);
+            return result.Status == GameActionStatus.Success
+                ? TypedResults.NoContent()
+                : ToHttpResult(result);
+        })
+        .WithName("DisconnectPlayer")
+        .WithSummary("Mark a player as disconnected")
+        .WithDescription("Starts a short grace period for page reloads; disconnected players are removed if they do not reconnect.")
+        .Produces(StatusCodes.Status204NoContent)
+        .ProducesProblem(StatusCodes.Status400BadRequest)
+        .ProducesProblem(StatusCodes.Status401Unauthorized)
+        .ProducesProblem(StatusCodes.Status404NotFound);
+
+        app.MapPost("/api/games/{pin}/players/leave", IResult (
+            string pin,
+            LeaveGameRequest body,
+            IGameService games,
+            CancellationToken cancellationToken) =>
+        {
+            _ = cancellationToken;
+            var result = games.Leave(pin, body.PlayerId);
+            return result.Status == GameActionStatus.Success
+                ? TypedResults.NoContent()
+                : ToHttpResult(result);
+        })
+        .WithName("LeaveGame")
+        .WithSummary("Remove yourself from a game")
+        .WithDescription("Immediately removes the authenticated player from the game and scoreboard.")
+        .Produces(StatusCodes.Status204NoContent)
+        .ProducesProblem(StatusCodes.Status400BadRequest)
+        .ProducesProblem(StatusCodes.Status401Unauthorized)
+        .ProducesProblem(StatusCodes.Status404NotFound);
+
+        app.MapPost("/api/games/{pin}/players/kick", IResult (
+            string pin,
+            KickPlayerRequest body,
+            HttpRequest request,
+            IGameService games,
+            CancellationToken cancellationToken) =>
+        {
+            _ = cancellationToken;
+            return ToHttpResult(games.KickPlayer(
+                pin,
+                request.Headers["X-Host-Key"].FirstOrDefault() ?? string.Empty,
+                body.Username));
+        })
+        .WithName("KickPlayer")
+        .WithSummary("Remove a player from a game")
+        .WithDescription("Allows the host to remove a named participant from the lobby or active game.")
+        .Produces<GameSnapshotResponse>()
+        .ProducesProblem(StatusCodes.Status400BadRequest)
+        .ProducesProblem(StatusCodes.Status401Unauthorized)
+        .ProducesProblem(StatusCodes.Status404NotFound)
+        .ProducesProblem(StatusCodes.Status409Conflict);
+
+        app.MapPost("/api/games/{pin}/skip-turn", IResult (
+            string pin,
+            HttpRequest request,
+            IGameService games,
+            CancellationToken cancellationToken) =>
+        {
+            _ = cancellationToken;
+            return ToHttpResult(games.SkipTurn(
+                pin,
+                request.Headers["X-Host-Key"].FirstOrDefault() ?? string.Empty));
+        })
+        .WithName("SkipBoardTurn")
+        .WithSummary("Skip the active board-game turn")
+        .WithDescription("Allows the host to end the current player's board turn and continue with the next player.")
+        .Produces<GameSnapshotResponse>()
+        .ProducesProblem(StatusCodes.Status401Unauthorized)
+        .ProducesProblem(StatusCodes.Status404NotFound)
+        .ProducesProblem(StatusCodes.Status409Conflict);
+
         app.MapPost("/api/games/{pin}/start", IResult (
             string pin,
             HttpRequest request,

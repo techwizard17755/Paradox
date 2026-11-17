@@ -445,6 +445,20 @@ function post(url, body, headers = {}) {
   return api(url, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body), headers });
 }
 
+function markPlayerDisconnected(room) {
+  if (!room?.pin || !room.playerId) return;
+  const url = `/api/games/${encodeURIComponent(room.pin)}/players/disconnect`;
+  const body = JSON.stringify({ playerId: room.playerId });
+  const payload = new Blob([body], { type: "application/json" });
+  if (navigator.sendBeacon?.(url, payload)) return;
+  fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body,
+    keepalive: true
+  }).catch(error => console.error("Could not notify the game that this player disconnected.", error));
+}
+
 function setNav(active, view = routeFor().page) {
   document.body.dataset.page = view;
   if (active) app.classList.remove("board-game-page");
@@ -1861,6 +1875,28 @@ function renderPhraseProgress(snapshot, currentUsername = null) {
   </section>`;
 }
 
+function renderHostPlayerControls(snapshot) {
+  const players = snapshot.players || [];
+  if (!players.length) return "";
+  const canSkipTurn = snapshot.boardEnabled &&
+    ["BoardTurn", "BoardAction", "Wheel", "Question", "Reveal"].includes(snapshot.status) &&
+    snapshot.activePlayer;
+  return `<details class="host-player-controls">
+    <summary>Players <span>${players.length}</span></summary>
+    <div class="host-player-menu">
+      <strong>Manage players</strong>
+      ${players.map(player => `<div class="host-player-row">
+        <span>${escapeHtml(player.username)}</span>
+        <button class="host-player-kick" data-action="kick-player" data-username="${escapeHtml(player.username)}">Kick</button>
+      </div>`).join("")}
+      ${canSkipTurn ? `<div class="host-skip-turn">
+        <span>Current turn: <strong>${escapeHtml(snapshot.activePlayer)}</strong></span>
+        <button class="secondary-btn" data-action="skip-turn">Skip turn</button>
+      </div>` : ""}
+    </div>
+  </details>`;
+}
+
 function renderCardAward(transition, modeType, username = null) {
   const awards = (transition?.cardAwards || []).filter(award =>
     modeType === "host" || award.username.toLocaleLowerCase() === username?.toLocaleLowerCase());
@@ -1935,7 +1971,13 @@ function renderHost(snapshot, transition) {
   if (transition?.cardAwards?.length) playPhraseCardSound();
   app.innerHTML = `
     <section class="game-layout ${snapshot.boardEnabled ? "board-game-layout" : ""}">
-      <div class="game-header"><h1>${escapeHtml(title)}</h1><div class="game-pin"><span>JOIN PIN</span><strong>${escapeHtml(snapshot.pin)}</strong></div></div>
+      <div class="game-header">
+        <h1>${escapeHtml(title)}</h1>
+        <div class="game-header-actions">
+          <div class="game-pin"><span>JOIN PIN</span><strong>${escapeHtml(snapshot.pin)}</strong></div>
+          ${renderHostPlayerControls(snapshot)}
+        </div>
+      </div>
       ${lobby ? `
         <div class="lobby-layout">
           <section class="waiting-panel">
@@ -2047,7 +2089,13 @@ function renderPlayer(snapshot, transition) {
   if (transition?.cardAwards?.length) playPhraseCardSound();
   app.innerHTML = `
     <section class="game-layout ${snapshot.boardEnabled ? "board-game-layout" : ""}">
-      <div class="game-header"><h1>${escapeHtml(snapshot.quizName)}</h1><div class="game-pin"><span>YOU’RE IN</span><strong>${escapeHtml(player.username)}</strong></div></div>
+      <div class="game-header">
+        <h1>${escapeHtml(snapshot.quizName)}</h1>
+        <div class="game-header-actions">
+          <div class="game-pin"><span>YOU’RE IN</span><strong>${escapeHtml(player.username)}</strong></div>
+          <button class="quiet-btn game-leave-btn" data-action="leave">Leave game</button>
+        </div>
+      </div>
       ${lobby ? `
         <div class="waiting-panel" style="text-align:center;padding:56px 25px">
           <span class="eyebrow">✦ You made it</span><h2 style="font-size:28px">You’re in the lobby, ${escapeHtml(player.username)}.</h2>
@@ -2309,7 +2357,21 @@ function restoreSession() {
   renderRoute();
 }
 
-window.addEventListener("popstate", renderRoute);
+window.addEventListener("popstate", () => {
+  const player = JSON.parse(sessionStorage.getItem("paradox-player") || "null");
+  const route = routeFor();
+  if (player && (route.page !== "play" || route.pin !== player.pin)) {
+    markPlayerDisconnected(player);
+    sessionStorage.removeItem("paradox-player");
+    stopPolling();
+  }
+  renderRoute();
+});
+
+window.addEventListener("pagehide", () => {
+  const player = JSON.parse(sessionStorage.getItem("paradox-player") || "null");
+  if (player) markPlayerDisconnected(player);
+});
 
 document.addEventListener("click", async event => {
   unlockGameAudio();
@@ -2322,6 +2384,17 @@ document.addEventListener("click", async event => {
       !event.altKey &&
       (!appLink.target || appLink.target === "_self")) {
     event.preventDefault();
+    const player = JSON.parse(sessionStorage.getItem("paradox-player") || "null");
+    if (player && appLink.pathname.toLowerCase() !== `/play/${player.pin}`.toLowerCase()) {
+      try {
+        await post(`/api/games/${encodeURIComponent(player.pin)}/players/leave`, { playerId: player.playerId });
+      } catch (error) {
+        markPlayerDisconnected(player);
+        notify(error.message);
+      }
+      sessionStorage.removeItem("paradox-player");
+      stopPolling();
+    }
     if (routeFor().page === "builder") {
       const form = document.querySelector('form[data-form="create"]');
       if (form) quizPayload(form);
@@ -2510,9 +2583,47 @@ document.addEventListener("click", async event => {
     return;
   }
   if (action === "back-to-join" || action === "leave") {
+    const player = JSON.parse(sessionStorage.getItem("paradox-player") || "null");
+    if (player) {
+      try {
+        await post(`/api/games/${encodeURIComponent(player.pin)}/players/leave`, { playerId: player.playerId });
+      } catch (error) {
+        notify(error.message);
+        return;
+      }
+    }
     sessionStorage.removeItem("paradox-player");
     sessionStorage.removeItem("paradox-host");
+    stopPolling();
     navigateTo("/join");
+    return;
+  }
+  if (action === "kick-player") {
+    const room = JSON.parse(sessionStorage.getItem("paradox-host") || "null");
+    const username = actionButton.dataset.username;
+    if (!room || !username || !confirm(`Kick ${username} out of this game?`)) return;
+    actionButton.disabled = true;
+    try {
+      await post(`/api/games/${encodeURIComponent(room.pin)}/players/kick`, { username }, { "X-Host-Key": room.hostKey });
+      await refreshRoom();
+    } catch (error) {
+      actionButton.disabled = false;
+      notify(error.message);
+    }
+    return;
+  }
+  if (action === "skip-turn") {
+    const room = JSON.parse(sessionStorage.getItem("paradox-host") || "null");
+    const activePlayer = previousRoomSnapshot?.activePlayer;
+    if (!room || !activePlayer || !confirm(`Skip ${activePlayer}'s current turn?`)) return;
+    actionButton.disabled = true;
+    try {
+      await post(`/api/games/${encodeURIComponent(room.pin)}/skip-turn`, undefined, { "X-Host-Key": room.hostKey });
+      await refreshRoom();
+    } catch (error) {
+      actionButton.disabled = false;
+      notify(error.message);
+    }
     return;
   }
   if (action === "new-quiz") {

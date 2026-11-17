@@ -6,6 +6,10 @@ internal interface IGameService
 {
     (GameCreatedResponse? Response, string? Error) Create(CreateGameRequest request);
     PlayerJoinResult Join(string pin, string username);
+    GameActionResult Disconnect(string pin, string playerId);
+    GameActionResult Leave(string pin, string playerId);
+    GameActionResult KickPlayer(string pin, string hostKey, string username);
+    GameActionResult SkipTurn(string pin, string hostKey);
     GameSnapshotResponse? GetSnapshot(string pin, string? hostKey, string? playerId, out bool unauthorized);
     GameActionResult Start(string pin, string hostKey);
     GameActionResult SubmitAnswer(string pin, string playerId, int? optionIndex, string? answerText);
@@ -29,6 +33,8 @@ internal sealed record PlayerJoinResult(GameActionStatus Status, PlayerJoinedRes
 
 internal sealed class GameService : IGameService
 {
+    private static readonly TimeSpan DisconnectGracePeriod = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan PlayerTimeout = TimeSpan.FromMinutes(2);
     private readonly object _gate = new();
     private readonly Dictionary<string, Game> _games = new(StringComparer.Ordinal);
 
@@ -220,6 +226,76 @@ internal sealed class GameService : IGameService
         }
     }
 
+    public GameActionResult Disconnect(string pin, string playerId)
+    {
+        lock (_gate)
+        {
+            if (!_games.TryGetValue(NormalizePin(pin), out var game))
+                return NotFound();
+            if (!game.Players.TryGetValue(playerId, out var player))
+                return new(GameActionStatus.Unauthorized, null, "Your player session could not be found.");
+
+            var now = DateTimeOffset.UtcNow;
+            player.LastSeenAtUtc = now;
+            player.DisconnectedAtUtc = now;
+            return Success(game, playerId);
+        }
+    }
+
+    public GameActionResult Leave(string pin, string playerId)
+    {
+        lock (_gate)
+        {
+            if (!_games.TryGetValue(NormalizePin(pin), out var game))
+                return NotFound();
+            if (!game.Players.TryGetValue(playerId, out var player))
+                return new(GameActionStatus.Unauthorized, null, "Your player session could not be found.");
+
+            return RemovePlayer(game, player, $"{player.Username} left the game.");
+        }
+    }
+
+    public GameActionResult KickPlayer(string pin, string hostKey, string username)
+    {
+        lock (_gate)
+        {
+            if (!TryGetHostGame(pin, hostKey, out var game, out var error))
+                return error!;
+
+            ReapDisconnectedPlayers(game, DateTimeOffset.UtcNow);
+            var player = game.Players.Values.FirstOrDefault(candidate =>
+                string.Equals(candidate.Username, username.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (player is null)
+                return Conflict("That player is no longer in the game.");
+
+            return RemovePlayer(game, player, $"{player.Username} was removed by the host.");
+        }
+    }
+
+    public GameActionResult SkipTurn(string pin, string hostKey)
+    {
+        lock (_gate)
+        {
+            if (!TryGetHostGame(pin, hostKey, out var game, out var error))
+                return error!;
+
+            var activePlayerBeforeCleanup = game.CurrentPlayerId;
+            ReapDisconnectedPlayers(game, DateTimeOffset.UtcNow);
+            if (!string.Equals(game.CurrentPlayerId, activePlayerBeforeCleanup, StringComparison.Ordinal))
+                return Success(game);
+            if (!game.BoardEnabled ||
+                game.Status is not (GameStatus.BoardTurn or GameStatus.BoardAction or GameStatus.Wheel or GameStatus.Question or GameStatus.Reveal) ||
+                game.CurrentPlayerId is null ||
+                !game.Players.TryGetValue(game.CurrentPlayerId, out var player))
+                return Conflict("There is no active board-game turn to skip.");
+
+            game.TileMessage = $"The host skipped {player.Username}'s turn.";
+            game.FinishAfterTurn = false;
+            AdvanceToNextBoardTurn(game);
+            return Success(game);
+        }
+    }
+
     public GameSnapshotResponse? GetSnapshot(string pin, string? hostKey, string? playerId, out bool unauthorized)
     {
         lock (_gate)
@@ -235,8 +311,22 @@ internal sealed class GameService : IGameService
                 return null;
             }
 
+            var now = DateTimeOffset.UtcNow;
+            if (playerId is not null)
+            {
+                if (!game.Players.TryGetValue(playerId, out var player))
+                {
+                    unauthorized = true;
+                    return null;
+                }
+
+                player.LastSeenAtUtc = now;
+                player.DisconnectedAtUtc = null;
+            }
+
+            ReapDisconnectedPlayers(game, now);
             AdvanceExpiredQuestion(game);
-            AdvancePhraseBonus(game, DateTimeOffset.UtcNow);
+            AdvancePhraseBonus(game, now);
             return Snapshot(game, playerId, isHost);
         }
     }
@@ -730,6 +820,74 @@ internal sealed class GameService : IGameService
             game.Players[game.CurrentPlayerId].Username + "'s turn.";
     }
 
+    private static GameActionResult RemovePlayer(Game game, Player player, string message)
+    {
+        var removedTurnIndex = game.PlayerOrder.IndexOf(player.Id);
+        var wasCurrentPlayer = string.Equals(game.CurrentPlayerId, player.Id, StringComparison.Ordinal);
+        game.PlayerOrder.Remove(player.Id);
+        game.Players.Remove(player.Id);
+        game.LeaderboardDirty = true;
+        if (string.Equals(game.WinnerUsername, player.Username, StringComparison.OrdinalIgnoreCase))
+            game.WinnerUsername = null;
+
+        if (game.Players.Count == 0)
+        {
+            game.CurrentPlayerId = null;
+            game.CurrentTurnIndex = 0;
+            if (game.Status != GameStatus.Lobby)
+            {
+                game.Status = GameStatus.Finished;
+                game.EndsAtUtc = null;
+                game.CurrentQuestionIndex = -1;
+                game.FinishAfterTurn = false;
+                game.TileMessage = "The game ended because no players remain.";
+            }
+            return Success(game);
+        }
+
+        if (!wasCurrentPlayer)
+        {
+            if (game.CurrentPlayerId is not null)
+                game.CurrentTurnIndex = game.PlayerOrder.IndexOf(game.CurrentPlayerId);
+            return Success(game);
+        }
+
+        if (game.Status is GameStatus.Lobby or GameStatus.Finished)
+        {
+            game.CurrentPlayerId = null;
+            game.CurrentTurnIndex = 0;
+            return Success(game);
+        }
+
+        game.CurrentTurnIndex = removedTurnIndex % game.PlayerOrder.Count;
+        game.CurrentPlayerId = game.PlayerOrder[game.CurrentTurnIndex];
+        if (game.BoardEnabled && game.Status != GameStatus.SmashAnswer)
+        {
+            game.Status = GameStatus.BoardTurn;
+            game.EndsAtUtc = null;
+            game.CurrentQuestionIndex = -1;
+            game.ActiveSubject = null;
+            game.WheelForBoardTurn = false;
+            game.WheelSubjectConstraint = null;
+            game.FinishAfterTurn = false;
+            game.TileMessage = $"{message} It is {game.Players[game.CurrentPlayerId].Username}'s turn.";
+        }
+
+        return Success(game);
+    }
+
+    private static void ReapDisconnectedPlayers(Game game, DateTimeOffset now)
+    {
+        var expiredPlayers = game.Players.Values
+            .Where(player =>
+                (player.DisconnectedAtUtc is { } disconnectedAt &&
+                 disconnectedAt <= now - DisconnectGracePeriod) ||
+                player.LastSeenAtUtc <= now - PlayerTimeout)
+            .ToArray();
+        foreach (var player in expiredPlayers)
+            RemovePlayer(game, player, $"{player.Username} disconnected.");
+    }
+
     private static void FinishBoardGame(Game game)
     {
         game.Status = GameStatus.Finished;
@@ -1136,6 +1294,8 @@ internal sealed class GameService : IGameService
     {
         public string Id { get; } = id;
         public string Username { get; } = username;
+        public DateTimeOffset LastSeenAtUtc { get; set; } = DateTimeOffset.UtcNow;
+        public DateTimeOffset? DisconnectedAtUtc { get; set; }
         public int Score { get; set; }
         public int? LastAnswerPoints { get; set; }
         public int Position { get; set; }
