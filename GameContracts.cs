@@ -77,7 +77,7 @@ public sealed record CreateGameRequest
     public PhrasePuzzleRequest? PhrasePuzzle { get; init; }
 
     /// <summary>Questions to play in order.</summary>
-    [Required, MinLength(1), MaxLength(30)]
+    [Required, MinLength(1), MaxLength(60)]
     public required List<QuizQuestionRequest> Questions { get; init; }
 }
 
