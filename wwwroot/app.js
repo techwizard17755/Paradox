@@ -1636,19 +1636,20 @@ function renderSurveyResults(question, responses) {
 function snapshotTransition(previous, snapshot, modeType) {
   if (!previous) return null;
   const rolled = (snapshot.rollSequence || 0) > (previous.rollSequence || 0);
+  const boardMovement = rolled ? boardMovementBetween(previous, snapshot) : null;
   const previousCardSequence = Math.max(0, ...(previous.cardAwards || []).map(award => award.sequence));
   const newCardAwards = (snapshot.cardAwards || []).filter(award => award.sequence > previousCardSequence);
   if (snapshot.status === "Finished" && previous.status !== "Finished") {
     if (rolled) diceAnimationUntil = Date.now() + 1800;
-    return { type: "finish", diceRoll: rolled, cardAwards: newCardAwards };
+    return { type: "finish", diceRoll: rolled, boardMovement, cardAwards: newCardAwards };
   }
   if (newCardAwards.length) {
     if (rolled) diceAnimationUntil = Date.now() + 1800;
-    return { type: "letter-card", diceRoll: rolled, cardAwards: newCardAwards };
+    return { type: "letter-card", diceRoll: rolled, boardMovement, cardAwards: newCardAwards };
   }
   if (rolled) {
     diceAnimationUntil = Date.now() + 1800;
-    return { type: "dice-roll", diceRoll: true };
+    return { type: boardMovement ? "board-move" : "dice-roll", diceRoll: true, boardMovement };
   }
   if (JSON.stringify(snapshot.boardPositions) !== JSON.stringify(previous.boardPositions))
     return { type: "board-move" };
@@ -1665,35 +1666,76 @@ function snapshotTransition(previous, snapshot, modeType) {
   return null;
 }
 
+function boardMovementBetween(previous, snapshot) {
+  const tiles = snapshot.boardTiles || [];
+  const positionsBefore = previous.boardPositions || [];
+  const positionsAfter = snapshot.boardPositions || [];
+  const username = previous.activePlayer;
+  if (!snapshot.boardEnabled || !tiles.length || !username) return null;
+
+  const oldPosition = positionsBefore.find(player =>
+    player.username.toLocaleLowerCase() === username.toLocaleLowerCase())?.position;
+  const newPosition = positionsAfter.find(player =>
+    player.username.toLocaleLowerCase() === username.toLocaleLowerCase())?.position;
+  if (!Number.isInteger(oldPosition) || !Number.isInteger(newPosition)) return null;
+
+  const steps = [];
+  const spacesMoved = Math.max(0, Math.min(snapshot.lastRoll || 0, tiles.length));
+  for (let step = 1; step <= spacesMoved; step++)
+    steps.push((oldPosition + step) % tiles.length);
+
+  const rolledPosition = steps.length ? steps[steps.length - 1] : oldPosition;
+  if (newPosition !== rolledPosition) steps.push(newPosition);
+  return steps.length ? { username, from: oldPosition, to: newPosition, steps } : null;
+}
+
 function boardTileLabel(tile) {
   return boardTileDisplay(tile);
 }
 
-function renderBoardTrack(snapshot, animateMove = false) {
+function renderBoardPlayerPiece(player, playerIndex, extraClass = "") {
+  const pieces = ["🚀", "🪐", "⭐", "💎", "🦊", "👑"];
+  const hue = (playerIndex * 63 + 24) % 360;
+  return `<span class="live-board-player-piece ${extraClass}" style="--piece-hue:${hue}" role="img" aria-label="${escapeHtml(player.username)}" title="${escapeHtml(player.username)}">${pieces[playerIndex % pieces.length]}</span>`;
+}
+
+function renderBoardTrack(snapshot, movement = null) {
   const tiles = snapshot.boardTiles || [];
   const positions = snapshot.boardPositions || [];
   if (!tiles.length) return "";
   const layout = String(snapshot.boardLayout || "Track").toLowerCase() === "snakesandladders" ? "SnakesAndLadders" : "Track";
   const firstPosition = boardGridPosition(0, tiles.length, layout);
+  const movingUsername = movement?.username?.toLocaleLowerCase();
+  const movingPlayerIndex = positions.findIndex(player =>
+    player.username.toLocaleLowerCase() === movingUsername);
   const path = tiles.map((tile, index) => {
     const position = boardGridPosition(index, tiles.length, layout);
     const placement = `grid-column:${position.column};grid-row:${position.row};`;
     const playersHere = positions.filter(player => player.position === index);
     const currentTile = snapshot.activePlayer &&
       playersHere.some(player => player.username.toLocaleLowerCase() === snapshot.activePlayer.toLocaleLowerCase());
+    const playerPieces = playersHere.map(player => {
+      const playerIndex = positions.findIndex(entry =>
+        entry.username.toLocaleLowerCase() === player.username.toLocaleLowerCase());
+      const isMoving = player.username.toLocaleLowerCase() === movingUsername;
+      if (!isMoving) return renderBoardPlayerPiece(player, playerIndex);
+      if (index === movement.to) return renderBoardPlayerPiece(player, playerIndex, "live-board-piece-final");
+      return "";
+    }).join("");
+    const movingPiece = movement && index === movement.from && movingPlayerIndex >= 0
+      ? renderBoardPlayerPiece(positions[movingPlayerIndex], movingPlayerIndex, "live-board-piece-moving")
+      : "";
     const image = boardTileImageSrc(tile);
-    return `<div class="live-board-tile-wrap" style="${placement}">
+    return `<div class="live-board-tile-wrap" data-board-index="${index}" style="${placement}">
       <div class="live-board-tile ${boardTileClass(tile.action)} ${index === 0 ? "live-board-start" : ""} ${currentTile ? "live-board-current" : ""}">
         <span class="live-board-index">${index === 0 ? "START" : index + 1 === tiles.length && !snapshot.phrasePuzzleEnabled ? "FINISH" : index + 1}</span>
         ${image ? `<img src="${image}" alt="" loading="lazy">` : ""}
         <strong>${escapeHtml(boardTileLabel(tile))}</strong>
-        <span class="live-board-players">${playersHere.map(player =>
-          `<i title="${escapeHtml(player.username)}">${escapeHtml(player.username.slice(0, 1).toUpperCase())}</i>`
-        ).join("")}</span>
+        <span class="live-board-players">${playerPieces}${movingPiece}</span>
       </div>
     </div>`;
   }).join("");
-  return `<section class="live-board board-style-${String(snapshot.boardStyle || "Aurora").toLowerCase()} ${animateMove ? "live-board-moving" : ""}" aria-label="${escapeHtml(snapshot.boardTitle || "Game board")}">
+  return `<section class="live-board board-style-${String(snapshot.boardStyle || "Aurora").toLowerCase()} ${movement ? "live-board-moving" : ""}" aria-label="${escapeHtml(snapshot.boardTitle || "Game board")}">
     <div class="live-board-heading"><strong>${escapeHtml(snapshot.boardTitle || "Game board")}</strong><span>${positions.length} ${positions.length === 1 ? "player" : "players"}</span></div>
     <div class="live-board-path ${layout === "SnakesAndLadders" ? "live-board-snakes" : "live-board-track"}" style="--board-columns:${firstPosition.columns};--board-rows:${firstPosition.rows}">
       ${layout === "Track" ? `<div class="board-track-center"><span aria-hidden="true">✦</span><strong>${escapeHtml(snapshot.boardTitle || "The Showdown")}</strong><small>FOLLOW THE PATH</small></div>` : ""}
@@ -1701,6 +1743,75 @@ function renderBoardTrack(snapshot, animateMove = false) {
     </div>
     ${snapshot.lastRoll ? `<p class="board-roll-note">Last roll: <strong>${snapshot.lastRoll}</strong></p>` : ""}
   </section>`;
+}
+
+function animateBoardMovement(movement) {
+  if (!movement?.steps?.length) return;
+  const board = document.querySelector(".live-board-moving");
+  const piece = board?.querySelector(".live-board-piece-moving");
+  const finalPiece = board?.querySelector(".live-board-piece-final");
+  if (!board || !piece || !finalPiece) return;
+
+  document.querySelectorAll("body > .live-board-piece-moving").forEach(previousPiece => {
+    previousPiece.getAnimations().forEach(animation => animation.cancel());
+    previousPiece.remove();
+  });
+
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    piece.remove();
+    finalPiece.classList.remove("live-board-piece-final");
+    return;
+  }
+
+  const tileCenter = index => {
+    const tile = board.querySelector(`[data-board-index="${index}"]`);
+    if (!tile) return null;
+    const rect = tile.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  };
+  const start = tileCenter(movement.from);
+  if (!start) return;
+
+  piece.style.position = "fixed";
+  piece.style.left = `${start.x}px`;
+  piece.style.top = `${start.y}px`;
+  piece.style.zIndex = "950";
+  piece.style.transform = "translate(-50%, -50%)";
+  document.body.append(piece);
+  const frames = [{ left: `${start.x}px`, top: `${start.y}px`, transform: "translate(-50%, -50%) scale(1)" }];
+  movement.steps.forEach((index, stepIndex) => {
+    const destination = tileCenter(index);
+    if (!destination) return;
+    const progress = (stepIndex + 1) / movement.steps.length;
+    frames.push({
+      left: `${destination.x}px`,
+      top: `${destination.y - 13}px`,
+      transform: "translate(-50%, -50%) scale(1.25)",
+      offset: progress - 0.18 / movement.steps.length
+    });
+    frames.push({
+      left: `${destination.x}px`,
+      top: `${destination.y}px`,
+      transform: "translate(-50%, -50%) scale(1)",
+      offset: progress
+    });
+  });
+  const duration = Math.max(500, movement.steps.length * 240);
+  const animation = piece.animate(frames, {
+    duration,
+    easing: "ease-in-out",
+    fill: "forwards"
+  });
+  let completed = false;
+  const finishMovement = () => {
+    if (completed) return;
+    completed = true;
+    animation.cancel();
+    piece.remove();
+    finalPiece.classList.remove("live-board-piece-final");
+  };
+  animation.onfinish = finishMovement;
+  window.setTimeout(finishMovement, duration + 250);
 }
 
 function renderWheel(snapshot, isHost) {
@@ -1744,7 +1855,7 @@ function renderPhraseProgress(snapshot, currentUsername = null) {
       <article class="phrase-player-progress ${currentUsername?.toLocaleLowerCase() === player.username.toLocaleLowerCase() ? "phrase-player-self" : ""}">
         <strong>${escapeHtml(player.username)}</strong>
         <div class="phrase-mask" aria-label="Masked phrase">${escapeHtml(player.maskedPhrase)}</div>
-        <small>${player.cardsEarned} cards${snapshot.boardEnabled ? ` · ${player.boardLapsCompleted} laps` : ""}${snapshot.status === "SmashAnswer" ? ` · ${player.smashCorrectAnswers} correct` : ""}</small>
+        <small>${player.cardsEarned} ${player.cardsEarned === 1 ? "card" : "cards"}${snapshot.boardEnabled ? ` · ${player.boardLapsCompleted} ${player.boardLapsCompleted === 1 ? "lap" : "laps"}` : ""}${snapshot.status === "SmashAnswer" ? ` · ${player.smashCorrectAnswers} correct` : ""}</small>
       </article>`).join("")}</div>` : `<p class="mode-settings-note">Players’ phrase cards appear here.</p>`}
   </section>`;
 }
@@ -1821,9 +1932,8 @@ function renderHost(snapshot, transition) {
   const isPublicHost = usesBrowserQuizLibrary();
   if (transition?.cardAwards?.length) playPhraseCardSound();
   app.innerHTML = `
-    <section class="game-layout">
+    <section class="game-layout ${snapshot.boardEnabled ? "board-game-layout" : ""}">
       <div class="game-header"><h1>${escapeHtml(title)}</h1><div class="game-pin"><span>JOIN PIN</span><strong>${escapeHtml(snapshot.pin)}</strong></div></div>
-      ${renderPhraseProgress(snapshot)}
       ${lobby ? `
         <div class="lobby-layout">
           <section class="waiting-panel">
@@ -1840,7 +1950,7 @@ function renderHost(snapshot, transition) {
         </div>
       ` : finished ? `
         <div class="game-panel">
-          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, Boolean(transition?.diceRoll || transition?.type === "board-move")) : ""}
+          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, transition?.boardMovement) : ""}
           ${snapshot.boardEnabled ? renderDiceRoll(snapshot) : ""}
           ${renderWinnerAnnouncement(players, null, transition?.type === "finish", snapshot.winnerUsername)}
           <h2 class="leaderboard-heading">Final leaderboard</h2>
@@ -1849,21 +1959,21 @@ function renderHost(snapshot, transition) {
         </div>
       ` : smash ? `
         <div class="game-panel">
-          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, Boolean(transition?.diceRoll || transition?.type === "board-move")) : ""}
+          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, transition?.boardMovement) : ""}
           ${renderSmashHost(snapshot)}
           <h3 class="leaderboard-heading">Leaderboard</h3>${scoreList}
         </div>
       ` : wheel ? `
         <div class="game-panel">
-          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, Boolean(transition?.diceRoll || transition?.type === "board-move")) : ""}
+          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, transition?.boardMovement) : ""}
           ${snapshot.boardEnabled ? renderDiceRoll(snapshot) : ""}
           ${renderWheel(snapshot, true)}
           ${snapshot.boardEnabled ? `<p class="board-active-player">Current player: <strong>${escapeHtml(snapshot.activePlayer || "")}</strong></p>` : ""}
           <div class="aside-divider"></div><h3 class="leaderboard-heading">Live leaderboard</h3>${scoreList}
         </div>
       ` : boardTurn || boardAction ? `
-        <div class="game-panel">
-          ${renderBoardTrack(snapshot, Boolean(transition?.diceRoll || transition?.type === "board-move"))}
+        <div class="game-panel ${boardAction ? "board-question-stage" : "board-spectator"}">
+          ${renderBoardTrack(snapshot, transition?.boardMovement)}
           ${renderDiceRoll(snapshot)}
           <section class="board-turn-panel ${boardAction ? "board-custom-action" : ""}">
             <p class="card-kicker">${boardAction ? "CUSTOM TILE" : "BOARD TURN"}</p>
@@ -1874,8 +1984,8 @@ function renderHost(snapshot, transition) {
           <h3 class="leaderboard-heading">Leaderboard</h3>${scoreList}
         </div>
       ` : `
-        <div class="game-panel">
-          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, Boolean(transition?.diceRoll || transition?.type === "board-move")) : ""}
+        <div class="game-panel ${snapshot.boardEnabled && ["Question", "Reveal"].includes(snapshot.status) ? "board-question-stage" : ""}">
+          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, transition?.boardMovement) : ""}
           ${snapshot.boardEnabled ? renderDiceRoll(snapshot) : ""}
           ${snapshot.boardEnabled && snapshot.tileMessage ? `<p class="board-active-player">${escapeHtml(snapshot.tileMessage)}</p>` : ""}
           <div class="game-meta"><span>${snapshot.status === "Reveal" ? "ANSWER REVEAL" : "QUESTION " + snapshot.questionNumber + " OF " + snapshot.questionCount}</span><strong class="question-clock">${snapshot.status === "Question" ? secondsLeft(snapshot.endsAtUtc) + " sec" : snapshot.playerCount + " playing"}</strong></div>
@@ -1896,8 +2006,10 @@ function renderHost(snapshot, transition) {
           <div class="aside-divider"></div><h3 class="leaderboard-heading">${snapshot.status === "Reveal" ? "Updated leaderboard" : "Live leaderboard"}</h3>${scoreList}
         </div>
       `}
+      ${renderPhraseProgress(snapshot)}
     </section>
     ${renderCardAward(transition, "host")}`;
+  animateBoardMovement(transition?.boardMovement);
 }
 
 function renderPlayer(snapshot, transition) {
@@ -1927,9 +2039,8 @@ function renderPlayer(snapshot, transition) {
   );
   if (transition?.cardAwards?.length) playPhraseCardSound();
   app.innerHTML = `
-    <section class="game-layout">
+    <section class="game-layout ${snapshot.boardEnabled ? "board-game-layout" : ""}">
       <div class="game-header"><h1>${escapeHtml(snapshot.quizName)}</h1><div class="game-pin"><span>YOU’RE IN</span><strong>${escapeHtml(player.username)}</strong></div></div>
-      ${renderPhraseProgress(snapshot, player.username)}
       ${lobby ? `
         <div class="waiting-panel" style="text-align:center;padding:56px 25px">
           <span class="eyebrow">✦ You made it</span><h2 style="font-size:28px">You’re in the lobby, ${escapeHtml(player.username)}.</h2>
@@ -1939,7 +2050,7 @@ function renderPlayer(snapshot, transition) {
         </div>
       ` : finished ? `
         <div class="game-panel">
-          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, Boolean(transition?.diceRoll || transition?.type === "board-move")) : ""}
+          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, transition?.boardMovement) : ""}
           ${snapshot.boardEnabled ? renderDiceRoll(snapshot) : ""}
           ${renderWinnerAnnouncement(players, player.username, transition?.type === "finish", snapshot.winnerUsername)}
           <h2 class="leaderboard-heading">Final leaderboard</h2>${scoreList}
@@ -1947,20 +2058,20 @@ function renderPlayer(snapshot, transition) {
         </div>
       ` : smash ? `
         <div class="game-panel">
-          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, Boolean(transition?.diceRoll || transition?.type === "board-move")) : ""}
+          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, transition?.boardMovement) : ""}
           ${renderSmashPlayer(snapshot, player.username)}
           <h3 class="leaderboard-heading">Leaderboard</h3>${scoreList}
         </div>
       ` : wheel ? `
         <div class="game-panel">
-          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, Boolean(transition?.diceRoll || transition?.type === "board-move")) : ""}
+          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, transition?.boardMovement) : ""}
           ${snapshot.boardEnabled ? renderDiceRoll(snapshot) : ""}
           ${renderWheel(snapshot, false)}
           ${snapshot.boardEnabled ? `<p class="board-active-player">Current player: <strong>${escapeHtml(snapshot.activePlayer || "")}</strong></p>` : ""}
         </div>
       ` : boardTurn ? `
-        <div class="game-panel">
-          ${renderBoardTrack(snapshot, Boolean(transition?.diceRoll || transition?.type === "board-move"))}
+        <div class="game-panel ${isActiveBoardPlayer ? "board-question-stage" : "board-spectator"}">
+          ${renderBoardTrack(snapshot, transition?.boardMovement)}
           ${renderDiceRoll(snapshot)}
           <section class="board-turn-panel">
             <p class="card-kicker">BOARD TURN</p>
@@ -1971,8 +2082,8 @@ function renderPlayer(snapshot, transition) {
           <h3 class="leaderboard-heading">Leaderboard</h3>${scoreList}
         </div>
       ` : boardAction ? `
-        <div class="game-panel">
-          ${renderBoardTrack(snapshot, Boolean(transition?.diceRoll || transition?.type === "board-move"))}
+        <div class="game-panel ${isActiveBoardPlayer ? "board-question-stage" : "board-spectator"}">
+          ${renderBoardTrack(snapshot, transition?.boardMovement)}
           ${renderDiceRoll(snapshot)}
           <section class="board-turn-panel board-custom-action">
             <p class="card-kicker">CUSTOM TILE</p>
@@ -1983,12 +2094,14 @@ function renderPlayer(snapshot, transition) {
           <h3 class="leaderboard-heading">Leaderboard</h3>${scoreList}
         </div>
       ` : `
-        <div class="game-panel">
-          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, Boolean(transition?.diceRoll || transition?.type === "board-move")) : ""}
+        <div class="game-panel ${snapshot.boardEnabled && ["Question", "Reveal"].includes(snapshot.status)
+          ? isActiveBoardPlayer ? "board-question-stage" : "board-spectator"
+          : ""}">
+          ${snapshot.boardEnabled ? renderBoardTrack(snapshot, transition?.boardMovement) : ""}
           ${snapshot.boardEnabled ? renderDiceRoll(snapshot) : ""}
           ${snapshot.boardEnabled && snapshot.tileMessage ? `<p class="board-active-player">${escapeHtml(snapshot.tileMessage)}</p>` : ""}
-          ${snapshot.boardEnabled && snapshot.status === "Question" && !isActiveBoardPlayer
-            ? `<section class="board-turn-panel"><p class="card-kicker">BOARD QUESTION</p><h2>${escapeHtml(snapshot.activePlayer || "The active player")} is answering</h2><p>Only the player whose turn it is can answer this question.</p></section>`
+          ${snapshot.boardEnabled && !isActiveBoardPlayer && ["Question", "Reveal"].includes(snapshot.status)
+            ? `<section class="board-turn-panel"><p class="card-kicker">BOARD QUESTION</p><h2>${snapshot.status === "Question" ? `${escapeHtml(snapshot.activePlayer || "The active player")} is answering` : "Answer revealed"}</h2><p>${snapshot.status === "Question" ? "Only the player whose turn it is can answer this question." : "The active player is finishing their turn."}</p></section>`
             : `
           <div class="game-meta"><span>${snapshot.status === "Reveal" ? "ANSWER REVEAL" : "QUESTION " + snapshot.questionNumber + " OF " + snapshot.questionCount}</span><strong class="question-clock">${snapshot.status === "Question" ? secondsLeft(snapshot.endsAtUtc) + " sec" : "SCORES"}</strong></div>
           <div class="timer-track"><div class="timer-fill" style="width:${timerPercent(snapshot)}%"></div></div>
@@ -2031,8 +2144,10 @@ function renderPlayer(snapshot, transition) {
           `}
         </div>
       `}
+      ${renderPhraseProgress(snapshot, player.username)}
     </section>
     ${renderCardAward(transition, "player", player.username)}`;
+  animateBoardMovement(transition?.boardMovement);
 }
 
 function secondsLeft(endTime) {

@@ -324,11 +324,11 @@ h1, h2, h3 { font-family: "Space Grotesk", sans-serif; }
 .live-board-current img { opacity: .22; }
 @keyframes board-current-pulse { 50% { transform: scale(1.045); } }
 .live-board-moving .live-board-current { animation: board-tile-land .85s cubic-bezier(.16,.84,.34,1) both, board-current-pulse 1.5s ease-in-out .85s infinite; }
-.live-board-moving .live-board-players i { animation: board-token-arrive .65s cubic-bezier(.2,1.4,.4,1) both; }
 @keyframes board-tile-land { 0% { transform: scale(.82) rotate(-2deg); filter: brightness(1.8); } 65% { transform: scale(1.1) rotate(1deg); } 100% { transform: scale(1); filter: brightness(1); } }
-@keyframes board-token-arrive { 0% { opacity: 0; transform: translateY(-18px) scale(.5); } 70% { opacity: 1; transform: translateY(3px) scale(1.2); } 100% { transform: translateY(0) scale(1); } }
-.live-board-players { display: flex; gap: 3px; min-height: 17px; }
-.live-board-players i { width: 17px; height: 17px; display: grid; place-items: center; border-radius: 50%; background: var(--purple); color: #171126; font-size: 8px; font-style: normal; font-weight: 800; }
+.live-board-players { position: relative; display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; min-height: 22px; }
+.live-board-player-piece { width: 23px; height: 23px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.82); border-radius: 50%; background: linear-gradient(145deg, hsl(var(--piece-hue) 88% 78%), hsl(var(--piece-hue) 74% 48%)); box-shadow: 0 3px 8px rgba(0,0,0,.4), inset 0 1px 2px rgba(255,255,255,.65); font-size: 14px; line-height: 1; }
+.live-board-piece-final { visibility: hidden; }
+.live-board-piece-moving { will-change: left, top, transform; pointer-events: none; }
 .board-roll-note { margin: 10px 0 0; color: var(--muted); font-size: 10px; }
 .board-roll-note strong { color: var(--lime); }
 .board-active-player { margin: 0 0 14px; color: var(--muted); text-align: center; font-size: 11px; }
@@ -385,6 +385,13 @@ h1, h2, h3 { font-family: "Space Grotesk", sans-serif; }
 .tip-row { display: flex; gap: 11px; margin: 14px 0; color: #bcb6ca; font-size: 11px; line-height: 1.5; }
 .tip-icon { width: 24px; height: 24px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 8px; color: var(--lime); background: rgba(211,255,114,.1); }
 .game-layout { max-width: 850px; margin: 0 auto; }
+.board-game-layout { width: 100%; max-width: 1380px !important; }
+.board-question-stage { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); align-items: start; gap: clamp(14px, 2vw, 25px); }
+.board-question-stage > .live-board { grid-column: 1; grid-row: 1 / span 30; position: sticky; top: 16px; align-self: start; min-width: 0; margin: 0; }
+.board-question-stage > :not(.live-board) { grid-column: 2; min-width: 0; }
+.board-spectator { min-height: min(76vh, 1050px); align-content: start; }
+.board-spectator > .live-board { width: min(100%, 1050px); margin: 0 auto 18px; }
+.board-spectator .board-turn-panel { width: min(100%, 620px); }
 .game-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
 .game-header h1 { margin: 0; font-size: 27px; letter-spacing: -1px; }
 .game-pin { display: inline-flex; align-items: center; gap: 9px; padding: 10px 13px; border: 1px solid var(--line); border-radius: 11px; background: rgba(255,255,255,.045); color: #bdb6cb; font-size: 10px; font-weight: 800; letter-spacing: .8px; }
@@ -1920,7 +1927,7 @@ body[data-page]:not([data-page="join"]) select:focus-visible {
 .smash-round-editor .field-label > span { color: var(--dim); font-size: 9px; font-weight: 500; }
 .smash-accepted-field { min-height: 75px; resize: vertical; }
 
-.phrase-progress-panel { margin: 0 0 18px; padding: 15px; }
+.phrase-progress-panel { margin: 18px 0 0; padding: 17px; }
 .phrase-progress-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 7px; margin-bottom: 10px; }
 .phrase-progress-heading > strong { color: #e8e1f4; font-size: 11px; }
 .phrase-bonus-clock { color: var(--lime); font-size: 9px; font-weight: 700; }
@@ -1980,4 +1987,11 @@ body[data-page]:not([data-page="join"]) select:focus-visible {
   .phrase-reveal-card { min-width: 140px; }
   .smash-answer-actions { align-items: stretch; flex-direction: column; }
   .smash-answer-actions .primary-btn { width: 100%; }
+}
+
+@media (max-width: 850px) {
+  .board-question-stage { grid-template-columns: minmax(0, 1fr); }
+  .board-question-stage > .live-board { grid-column: 1; grid-row: auto; position: static; }
+  .board-question-stage > :not(.live-board) { grid-column: 1; }
+  .board-spectator { min-height: 0; }
 }
