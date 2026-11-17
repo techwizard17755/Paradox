@@ -1995,3 +1995,230 @@ body[data-page]:not([data-page="join"]) select:focus-visible {
   .board-question-stage > :not(.live-board) { grid-column: 1; }
   .board-spectator { min-height: 0; }
 }
+
+@media (min-width: 851px) {
+  #app.board-game-page {
+    width: min(1380px, calc(100% - 64px));
+    height: calc(100vh - 153px);
+    min-height: 0;
+    margin: 0 auto;
+    padding: 12px 0 8px;
+    overflow: hidden;
+  }
+
+  #app.board-game-page .board-game-layout {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 0;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    margin: 0 auto;
+    overflow: hidden;
+  }
+
+  #app.board-game-page .game-header {
+    margin-bottom: 8px;
+  }
+
+  #app.board-game-page .game-header h1 {
+    font-size: 22px;
+  }
+
+  #app.board-game-page .game-panel {
+    height: 100%;
+    min-height: 0;
+    padding: clamp(12px, 1.2vw, 18px);
+    overflow: hidden;
+  }
+
+  #app.board-game-page .board-question-stage {
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr);
+    grid-template-rows: minmax(0, 1fr);
+    align-items: stretch;
+    gap: clamp(10px, 1.5vw, 20px);
+  }
+
+  #app.board-game-page .board-question-stage > .live-board {
+    grid-column: 1;
+    grid-row: 1;
+    position: static;
+    align-self: stretch;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #app.board-game-page .board-question-content {
+    grid-column: 2;
+    grid-row: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 8px;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  #app.board-game-page .board-question-content > .leaderboard-heading,
+  #app.board-game-page .board-question-content > .score-list,
+  #app.board-game-page .board-question-content > .aside-divider {
+    display: none;
+  }
+
+  #app.board-game-page .board-round-stage .board-question-content > .dice-roll-result,
+  #app.board-game-page .board-round-stage .board-question-content > .board-active-player {
+    display: none;
+  }
+
+  #app.board-game-page .board-question-content .board-turn-panel {
+    margin: 0;
+    padding: 18px;
+  }
+
+  #app.board-game-page .board-question-content .dice-roll-result {
+    margin: 0 auto 6px;
+  }
+
+  #app.board-game-page .board-spectator {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    height: 100%;
+    min-height: 0;
+    padding: 10px;
+  }
+
+  #app.board-game-page .board-spectator > .live-board {
+    flex: 1 1 auto;
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    min-height: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #app.board-game-page .board-spectator > .board-question-content {
+    display: none;
+  }
+
+  #app.board-game-page .live-board-path {
+    flex: 1 1 auto;
+    min-height: 0;
+    grid-template-rows: repeat(var(--board-rows), minmax(0, 1fr));
+    aspect-ratio: auto;
+  }
+
+  #app.board-game-page .live-board-tile {
+    min-height: 0;
+  }
+
+  #app.board-game-page .game-question {
+    margin: 0 auto 8px;
+    font-size: clamp(20px, 2.2vw, 29px);
+  }
+
+  #app.board-game-page .timer-track {
+    margin: 7px 0 12px;
+  }
+
+  #app.board-game-page .answer-grid {
+    gap: 8px;
+  }
+
+  #app.board-game-page .answer-card {
+    min-height: 64px;
+    padding: 10px;
+  }
+
+  #app.board-game-page .phrase-progress-panel {
+    min-height: 0;
+    margin: 8px 0 0;
+    padding: 8px 12px;
+  }
+
+  #app.board-game-page .phrase-progress-heading {
+    gap: 4px 8px;
+    margin-bottom: 5px;
+  }
+
+  #app.board-game-page .phrase-player-grid {
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 5px;
+  }
+
+  #app.board-game-page .phrase-player-progress {
+    padding: 5px 7px;
+  }
+
+  #app.board-game-page .phrase-mask {
+    margin: 4px 0 3px;
+    font-size: clamp(9px, .8vw, 12px);
+    letter-spacing: .04em;
+    line-height: 1.25;
+  }
+}
+
+@media (min-width: 851px) and (max-height: 820px) {
+  #app.board-game-page {
+    padding-top: 8px;
+    padding-bottom: 5px;
+  }
+
+  #app.board-game-page .game-header {
+    margin-bottom: 5px;
+  }
+
+  #app.board-game-page .game-header h1 {
+    font-size: 19px;
+  }
+
+  #app.board-game-page .game-panel {
+    padding: 10px;
+  }
+
+  #app.board-game-page .board-question-content {
+    gap: 6px;
+  }
+
+  #app.board-game-page .board-question-content .game-question {
+    font-size: clamp(18px, 2vw, 24px);
+    line-height: 1.15;
+  }
+
+  #app.board-game-page .board-question-content .answer-card {
+    min-height: 56px;
+    padding: 8px;
+  }
+
+  #app.board-game-page .board-question-content .answer-result,
+  #app.board-game-page .board-question-content .answer-submitted {
+    margin-top: 8px;
+    padding: 10px 12px;
+  }
+
+  #app.board-game-page .board-question-content .answer-status {
+    min-height: 0;
+    margin: 5px 0 0;
+  }
+
+  #app.board-game-page .board-question-content .question-subject-pill {
+    margin-bottom: 4px;
+  }
+
+  #app.board-game-page .phrase-progress-panel {
+    margin-top: 5px;
+    padding: 6px 9px;
+  }
+
+  #app.board-game-page .round-summary,
+  #app.board-game-page .scoring-note {
+    display: none;
+  }
+}

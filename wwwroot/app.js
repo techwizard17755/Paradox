@@ -447,6 +447,7 @@ function post(url, body, headers = {}) {
 
 function setNav(active, view = routeFor().page) {
   document.body.dataset.page = view;
+  if (active) app.classList.remove("board-game-page");
   document.querySelectorAll(".nav-link").forEach(link => {
     const isActive = link.dataset.page === active;
     link.classList.toggle("active", isActive);
@@ -1736,7 +1737,7 @@ function renderBoardTrack(snapshot, movement = null) {
     </div>`;
   }).join("");
   return `<section class="live-board board-style-${String(snapshot.boardStyle || "Aurora").toLowerCase()} ${movement ? "live-board-moving" : ""}" aria-label="${escapeHtml(snapshot.boardTitle || "Game board")}">
-    <div class="live-board-heading"><strong>${escapeHtml(snapshot.boardTitle || "Game board")}</strong><span>${positions.length} ${positions.length === 1 ? "player" : "players"}</span></div>
+    <div class="live-board-heading"><strong>${escapeHtml(snapshot.boardTitle || "Game board")}</strong><span>${snapshot.activePlayer ? `${escapeHtml(snapshot.activePlayer)}’s turn · ` : ""}${positions.length} ${positions.length === 1 ? "player" : "players"}</span></div>
     <div class="live-board-path ${layout === "SnakesAndLadders" ? "live-board-snakes" : "live-board-track"}" style="--board-columns:${firstPosition.columns};--board-rows:${firstPosition.rows}">
       ${layout === "Track" ? `<div class="board-track-center"><span aria-hidden="true">✦</span><strong>${escapeHtml(snapshot.boardTitle || "The Showdown")}</strong><small>FOLLOW THE PATH</small></div>` : ""}
       ${path}
@@ -1930,6 +1931,7 @@ function renderHost(snapshot, transition) {
   );
   const questionType = snapshot.currentQuestion?.type || "MultipleChoice";
   const isPublicHost = usesBrowserQuizLibrary();
+  app.classList.toggle("board-game-page", snapshot.boardEnabled && ["BoardTurn", "BoardAction", "Question", "Reveal"].includes(snapshot.status));
   if (transition?.cardAwards?.length) playPhraseCardSound();
   app.innerHTML = `
     <section class="game-layout ${snapshot.boardEnabled ? "board-game-layout" : ""}">
@@ -1974,18 +1976,21 @@ function renderHost(snapshot, transition) {
       ` : boardTurn || boardAction ? `
         <div class="game-panel ${boardAction ? "board-question-stage" : "board-spectator"}">
           ${renderBoardTrack(snapshot, transition?.boardMovement)}
-          ${renderDiceRoll(snapshot)}
-          <section class="board-turn-panel ${boardAction ? "board-custom-action" : ""}">
-            <p class="card-kicker">${boardAction ? "CUSTOM TILE" : "BOARD TURN"}</p>
-            <h2>${boardAction ? "A host prompt is waiting" : `It’s ${escapeHtml(snapshot.activePlayer || "the next player")}’s turn`}</h2>
-            <p>${escapeHtml(snapshot.tileMessage || (boardAction ? "Review the custom tile action." : "The active player rolls from their own device."))}</p>
-            ${boardAction ? `<button class="primary-btn" data-action="next">${snapshot.winnerUsername ? "Finish game" : "Continue turn"} <span aria-hidden="true">→</span></button>` : `<span class="board-waiting-note">Waiting for the active player to roll…</span>`}
-          </section>
-          <h3 class="leaderboard-heading">Leaderboard</h3>${scoreList}
+          <div class="board-question-content">
+            ${renderDiceRoll(snapshot)}
+            <section class="board-turn-panel ${boardAction ? "board-custom-action" : ""}">
+              <p class="card-kicker">${boardAction ? "CUSTOM TILE" : "BOARD TURN"}</p>
+              <h2>${boardAction ? "A host prompt is waiting" : `It’s ${escapeHtml(snapshot.activePlayer || "the next player")}’s turn`}</h2>
+              <p>${escapeHtml(snapshot.tileMessage || (boardAction ? "Review the custom tile action." : "The active player rolls from their own device."))}</p>
+              ${boardAction ? `<button class="primary-btn" data-action="next">${snapshot.winnerUsername ? "Finish game" : "Continue turn"} <span aria-hidden="true">→</span></button>` : `<span class="board-waiting-note">Waiting for the active player to roll…</span>`}
+            </section>
+            <h3 class="leaderboard-heading">Leaderboard</h3>${scoreList}
+          </div>
         </div>
       ` : `
-        <div class="game-panel ${snapshot.boardEnabled && ["Question", "Reveal"].includes(snapshot.status) ? "board-question-stage" : ""}">
+        <div class="game-panel ${snapshot.boardEnabled && ["Question", "Reveal"].includes(snapshot.status) ? "board-question-stage board-round-stage" : ""}">
           ${snapshot.boardEnabled ? renderBoardTrack(snapshot, transition?.boardMovement) : ""}
+          ${snapshot.boardEnabled ? `<div class="board-question-content">` : ""}
           ${snapshot.boardEnabled ? renderDiceRoll(snapshot) : ""}
           ${snapshot.boardEnabled && snapshot.tileMessage ? `<p class="board-active-player">${escapeHtml(snapshot.tileMessage)}</p>` : ""}
           <div class="game-meta"><span>${snapshot.status === "Reveal" ? "ANSWER REVEAL" : "QUESTION " + snapshot.questionNumber + " OF " + snapshot.questionCount}</span><strong class="question-clock">${snapshot.status === "Question" ? secondsLeft(snapshot.endsAtUtc) + " sec" : snapshot.playerCount + " playing"}</strong></div>
@@ -2004,6 +2009,7 @@ function renderHost(snapshot, transition) {
             : `<p class="answer-status">${players.filter(player => player.lastAnswerPoints !== null).length} of ${snapshot.playerCount} answered${questionType === "Survey" ? " · survey answers are not scored" : ""}</p>`}
           ${snapshot.status === "Reveal" ? `<div style="display:flex;justify-content:center;margin:20px 0 27px"><button class="primary-btn" data-action="next">${snapshot.boardEnabled ? "Continue turn" : snapshot.questionNumber >= snapshot.questionCount ? "See final scores" : "Next question"} <span aria-hidden="true">→</span></button></div>` : ""}
           <div class="aside-divider"></div><h3 class="leaderboard-heading">${snapshot.status === "Reveal" ? "Updated leaderboard" : "Live leaderboard"}</h3>${scoreList}
+          ${snapshot.boardEnabled ? `</div>` : ""}
         </div>
       `}
       ${renderPhraseProgress(snapshot)}
@@ -2037,6 +2043,7 @@ function renderPlayer(snapshot, transition) {
     snapshot.status === "Reveal" || finished,
     transition?.type === "reveal"
   );
+  app.classList.toggle("board-game-page", snapshot.boardEnabled && ["BoardTurn", "BoardAction", "Question", "Reveal"].includes(snapshot.status));
   if (transition?.cardAwards?.length) playPhraseCardSound();
   app.innerHTML = `
     <section class="game-layout ${snapshot.boardEnabled ? "board-game-layout" : ""}">
@@ -2072,32 +2079,37 @@ function renderPlayer(snapshot, transition) {
       ` : boardTurn ? `
         <div class="game-panel ${isActiveBoardPlayer ? "board-question-stage" : "board-spectator"}">
           ${renderBoardTrack(snapshot, transition?.boardMovement)}
-          ${renderDiceRoll(snapshot)}
-          <section class="board-turn-panel">
-            <p class="card-kicker">BOARD TURN</p>
-            ${isActiveBoardPlayer
-              ? `<h2>Your turn, ${escapeHtml(player.username)}!</h2><p>${escapeHtml(snapshot.tileMessage || "Roll the die. Paradox will move your piece automatically.")}</p><button class="primary-btn" data-action="roll-board">Roll the die <span aria-hidden="true">→</span></button>`
-              : `<h2>It’s ${escapeHtml(snapshot.activePlayer || "another player")}’s turn.</h2><p>${escapeHtml(snapshot.tileMessage || "Watch the board while they roll.")}</p><span class="board-waiting-note">Your turn is coming up.</span>`}
-          </section>
-          <h3 class="leaderboard-heading">Leaderboard</h3>${scoreList}
+          <div class="board-question-content">
+            ${renderDiceRoll(snapshot)}
+            <section class="board-turn-panel">
+              <p class="card-kicker">BOARD TURN</p>
+              ${isActiveBoardPlayer
+                ? `<h2>Your turn, ${escapeHtml(player.username)}!</h2><p>${escapeHtml(snapshot.tileMessage || "Roll the die. Paradox will move your piece automatically.")}</p><button class="primary-btn" data-action="roll-board">Roll the die <span aria-hidden="true">→</span></button>`
+                : `<h2>It’s ${escapeHtml(snapshot.activePlayer || "another player")}’s turn.</h2><p>${escapeHtml(snapshot.tileMessage || "Watch the board while they roll.")}</p><span class="board-waiting-note">Your turn is coming up.</span>`}
+            </section>
+            <h3 class="leaderboard-heading">Leaderboard</h3>${scoreList}
+          </div>
         </div>
       ` : boardAction ? `
         <div class="game-panel ${isActiveBoardPlayer ? "board-question-stage" : "board-spectator"}">
           ${renderBoardTrack(snapshot, transition?.boardMovement)}
-          ${renderDiceRoll(snapshot)}
-          <section class="board-turn-panel board-custom-action">
-            <p class="card-kicker">CUSTOM TILE</p>
-            <h2>${isActiveBoardPlayer ? "Your host has a prompt for you" : `${escapeHtml(snapshot.activePlayer || "A player")} landed on a custom tile`}</h2>
-            <p>${escapeHtml(snapshot.tileMessage || "Wait for the host to continue.")}</p>
-            <span class="board-waiting-note">${isActiveBoardPlayer ? "Follow the prompt while your host reviews the turn." : "The host will continue the game shortly."}</span>
-          </section>
-          <h3 class="leaderboard-heading">Leaderboard</h3>${scoreList}
+          <div class="board-question-content">
+            ${renderDiceRoll(snapshot)}
+            <section class="board-turn-panel board-custom-action">
+              <p class="card-kicker">CUSTOM TILE</p>
+              <h2>${isActiveBoardPlayer ? "Your host has a prompt for you" : `${escapeHtml(snapshot.activePlayer || "A player")} landed on a custom tile`}</h2>
+              <p>${escapeHtml(snapshot.tileMessage || "Wait for the host to continue.")}</p>
+              <span class="board-waiting-note">${isActiveBoardPlayer ? "Follow the prompt while your host reviews the turn." : "The host will continue the game shortly."}</span>
+            </section>
+            <h3 class="leaderboard-heading">Leaderboard</h3>${scoreList}
+          </div>
         </div>
       ` : `
         <div class="game-panel ${snapshot.boardEnabled && ["Question", "Reveal"].includes(snapshot.status)
-          ? isActiveBoardPlayer ? "board-question-stage" : "board-spectator"
+          ? isActiveBoardPlayer ? "board-question-stage board-round-stage" : "board-spectator board-round-stage"
           : ""}">
           ${snapshot.boardEnabled ? renderBoardTrack(snapshot, transition?.boardMovement) : ""}
+          ${snapshot.boardEnabled ? `<div class="board-question-content">` : ""}
           ${snapshot.boardEnabled ? renderDiceRoll(snapshot) : ""}
           ${snapshot.boardEnabled && snapshot.tileMessage ? `<p class="board-active-player">${escapeHtml(snapshot.tileMessage)}</p>` : ""}
           ${snapshot.boardEnabled && !isActiveBoardPlayer && ["Question", "Reveal"].includes(snapshot.status)
@@ -2142,6 +2154,7 @@ function renderPlayer(snapshot, transition) {
           ${snapshot.status === "Reveal" && questionType !== "Survey" ? renderRoundSummary(players, transition?.type === "reveal", snapshot.currentQuestion) : ""}
           ${snapshot.status === "Reveal" ? `<h3 class="leaderboard-heading">Leaderboard</h3>${scoreList}` : ""}
           `}
+          ${snapshot.boardEnabled ? `</div>` : ""}
         </div>
       `}
       ${renderPhraseProgress(snapshot, player.username)}
